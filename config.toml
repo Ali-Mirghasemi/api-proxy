@@ -1,0 +1,8 @@
+[[servers]]
+name = "test"
+listen = "0.0.0.0:8080"
+https = false
+
+[[servers.apis]]
+path = "/api/v1/user/login"
+target = "http://80.253.141.222:30000"

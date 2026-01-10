@@ -1,0 +1,60 @@
+[package]
+name = "api-proxy"
+version = "0.1.0"
+edition = "2024"
+default-run = "api_proxy"
+
+[lib]
+name = "api_proxy_lib"
+path = "lib/mod.rs"
+
+[[bin]]
+name = "api_proxy"
+path = "src/main.rs"
+
+[features]
+full = [
+    "toml",
+    "json",
+    "tls",
+]
+default = [
+    "full"
+]
+serde = [
+    "dep:serde",
+]
+json = [
+    "serde",
+    "dep:serde_json",
+]
+toml = [
+    "serde",
+    "dep:toml",
+]
+clap = [
+    "dep:clap",
+]
+tls = [
+    "dep:rustls",
+    "dep:rustls-pemfile",
+    "dep:rcgen",
+]
+
+[dependencies]
+thiserror = { version = "2.0", default-features = false }
+actix-web = { version = "4.12", default-features = false, features = ["compat", "http2", "rustls-0_23", "macros"]}
+actix-rt = { version = "2.11", default-features = false }
+awc = { version = "3.8", default-features = false }
+futures = { version = "0.3", default-features = false }
+log = { version = "0.4", default-features = false }
+env_logger = { version = "0.11", default-features = false }
+
+# Optional crates
+serde = { version = "1.0", default-features = false, optional = true }
+serde_json = { version = "1.0", default-features = false, optional = true }
+toml = { version = "0.9", default-features = false, features = ["serde", "parse"], optional = true }
+clap = { version = "4.5", default-features = false, optional = true }
+rustls = { version = "0.23", features = ["std", "ring"], optional = true }
+rustls-pemfile = { version = "2.2", default-features = false, features = ["std"], optional = true }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }
