@@ -1,3 +1,6 @@
+use actix_web::{HttpResponse, Responder, ResponseError};
+use serde_json::Value;
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -24,4 +27,36 @@ pub enum Error {
 
     #[error("Unknown Error")]
     Unknown,
+
+    #[error("Payload Limit")]
+    PayloadLimit,
+
+    #[error("Field not found, {0}")]
+    FieldNotFound(String),
+    
+    #[error("Field not object, {0}")]
+    FieldNotObject(String),
+
+    #[error("Field lower than minimum '{0}', {1} < {2}")]
+    FieldLowerThanMinimum(String, f64, f64),
+
+    #[error("Field higher than maximum '{0}', {1} > {2}")]
+    FieldHigherThanMaximum(String, f64, f64),
+
+    #[error("Field not in exact list '{0}', {1} > {2}")]
+    FieldNotInExactList(String, Value, Value),
+
+    #[error("Field length lower than minimum '{0}', {1} < {2}")]
+    FieldLengthLowerThanMinimum(String, usize, usize),
+
+    #[error("Field length higher than maximum '{0}', {1} > {2}")]
+    FieldLengthHigherThanMaximum(String, usize, usize),
+}
+
+pub type ProxyHttpResponse = Result<HttpResponse, Error>;
+
+impl ResponseError for Error {
+    fn status_code(&self) -> awc::http::StatusCode {
+        awc::http::StatusCode::BAD_REQUEST
+    }
 }

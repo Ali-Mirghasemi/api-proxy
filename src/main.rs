@@ -2,8 +2,8 @@ use std::env;
 use std::process;
 
 use log::{info, error};
-use api_proxy_lib::config::{load_config, Config};
-use api_proxy_lib::server;
+use api_proxy_lib::config::Config;
+use api_proxy_lib::server::Server;
 
 #[actix_web::main]
 async fn main() {
@@ -14,7 +14,7 @@ async fn main() {
     let config_path = env::args().nth(1).unwrap_or_else(|| "config.toml".to_string());
 
     // Load configuration
-    let config: Config = match load_config(&config_path) {
+    let config: Config = match Config::load(&config_path) {
         Ok(cfg) => {
             info!("Configuration loaded from '{}'", config_path);
             cfg
@@ -26,7 +26,7 @@ async fn main() {
     };
 
     // Run servers
-    if let Err(e) = server::run_servers(config.servers).await {
+    if let Err(e) = Server::run_servers(config.servers).await {
         error!("Server error: {:?}", e);
         process::exit(1);
     }

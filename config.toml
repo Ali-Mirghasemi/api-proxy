@@ -4,5 +4,14 @@ listen = "0.0.0.0:8080"
 https = false
 
 [[servers.apis]]
-path = "/api/v1/user/login"
-target = "http://80.253.141.222:30000"
+path = "/api/sum"
+target = "http://80.253.141.222:10888"
+target_path = "/sum"
+payload_limit = 128
+mode = "rule"
+
+[[servers.apis.json_rules]]
+field = ""
+min_length = 2
+max_length = 10
+
