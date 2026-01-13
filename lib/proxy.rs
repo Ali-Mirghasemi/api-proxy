@@ -1,3 +1,4 @@
+use actix_http::header::CONTENT_ENCODING;
 use actix_http::{BoxedPayloadStream, Payload};
 use actix_http::encoding::Decoder;
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder};
@@ -63,8 +64,11 @@ impl Proxy {
 
         let host = target_url.host().unwrap_or_default().to_string();
         let mut client_req = client
-            .request(req.method().clone(), target_url)
-            .no_decompress();
+            .request(req.method().clone(), target_url);
+
+        if !self.config.decompress {
+            client_req = client_req.no_decompress();
+        }
 
         // Forward headers
         for (name, value) in req.headers().iter() {
@@ -81,6 +85,9 @@ impl Proxy {
             client_req = client_req.insert_header((k.as_str(), v.as_str()));
         }
 
+        // Forward cookies
+        
+
         debug!("{client_req:?}");
         let res: ClientResponse<Decoder<Payload>> = match client_req.send_body(body).await {
             Ok(r) => r,
@@ -92,7 +99,7 @@ impl Proxy {
 
         debug!("{res:?}");
 
-        Self::build_response(req, res).await
+        self.build_response(req, res).await
     }
 
     pub async fn forward_rule(
@@ -185,6 +192,7 @@ impl Proxy {
     }
 
     pub async fn build_response(
+        &self,
         req: HttpRequest,
         mut res: ClientResponse<Decoder<Payload>>,
     ) -> ProxyHttpResponse {
@@ -194,6 +202,10 @@ impl Proxy {
 
         debug!("Headers count: {}", res.headers().len());
         for (name, value) in res.headers() {
+            if self.config.decompress && name == CONTENT_ENCODING {
+                continue;
+            }
+
             client_resp.insert_header((name.clone(), value.clone()));
         }
 

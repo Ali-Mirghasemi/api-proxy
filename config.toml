@@ -29,4 +29,14 @@ target = "https://www.zoomg.ir"
 # target_prefix = "/"
 target_path = "/"
 mode = "raw"
+decompress = true
+
+[[servers.apis]]
+path = "/zoomg/{tail}"
+target = "https://www.zoomg.ir"
+replace_links = false
+target_prefix = "/"
+# target_path = "/"
+mode = "raw"
+decompress = false   
 

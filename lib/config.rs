@@ -58,6 +58,8 @@ pub struct ApiConfig {
     pub rate_limit:             Option<RateLimitConfig>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub policy:                 ApiPolicy,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub decompress:             bool,
 }
 
 #[derive(Debug, Copy, Clone)]
