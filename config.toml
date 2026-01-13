@@ -12,6 +12,21 @@ mode = "rule"
 
 [[servers.apis.json_rules]]
 field = ""
-min_length = 2
-max_length = 10
+min_array_length = 2
+max_array_length = 5
+min = 1
+max = 10
+
+[[servers.apis]]
+path = "/google"
+target = "https://www.google.com"
+target_path = "/"
+mode = "raw"
+
+[[servers.apis]]
+path = "/zoomg"
+target = "https://www.zoomg.ir"
+# target_prefix = "/"
+target_path = "/"
+mode = "raw"
 

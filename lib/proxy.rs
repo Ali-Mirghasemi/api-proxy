@@ -1,16 +1,20 @@
-use actix_web::{HttpRequest, HttpResponse};
+use actix_http::{BoxedPayloadStream, Payload};
+use actix_http::encoding::Decoder;
+use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use actix_web::http::{Method, StatusCode, header};
-use awc::Client;
+use awc::body::MessageBody;
+use awc::{Client, ClientResponse, Connector};
 use actix_web::web::Bytes;
 use awc::http::Uri;
 use percent_encoding::{CONTROLS, utf8_percent_encode};
 use serde_json::Value;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::usize;
 
 use log::{debug, error};
 
-use crate::config::{ServerConfig, ApiConfig, Mode};
+use crate::config::{ApiConfig, FieldType, JsonRule, Mode, ServerConfig};
 use crate::errors::{Error, ProxyHttpResponse};
 
 pub struct Proxy {
@@ -29,6 +33,7 @@ impl Proxy {
     pub fn http_client() -> Client {
         Client::builder()
             .disable_redirects()
+            .no_default_headers()
             .finish()
     }
 
@@ -56,15 +61,19 @@ impl Proxy {
         let target_url = self.build_target_url(&req, &server);
         debug!("RAW proxy → {}", target_url);
 
+        let host = target_url.host().unwrap_or_default().to_string();
         let mut client_req = client
-            .request(req.method().clone(), target_url);
+            .request(req.method().clone(), target_url)
+            .no_decompress();
 
         // Forward headers
         for (name, value) in req.headers().iter() {
             if name == header::HOST {
-                continue;
+                client_req = client_req.insert_header((header::HOST, host.clone()));
             }
-            client_req = client_req.insert_header((name.clone(), value.clone()));
+            else {
+                client_req = client_req.insert_header((name.clone(), value.clone()));
+            }
         }
 
         // Header injection
@@ -72,7 +81,8 @@ impl Proxy {
             client_req = client_req.insert_header((k.as_str(), v.as_str()));
         }
 
-        let res = match client_req.send_body(body).await {
+        debug!("{client_req:?}");
+        let res: ClientResponse<Decoder<Payload>> = match client_req.send_body(body).await {
             Ok(r) => r,
             Err(e) => {
                 error!("Upstream request failed: {}", e);
@@ -80,7 +90,9 @@ impl Proxy {
             }
         };
 
-        Self::build_response(res).await
+        debug!("{res:?}");
+
+        Self::build_response(req, res).await
     }
 
     pub async fn forward_rule(
@@ -133,60 +145,8 @@ impl Proxy {
             else {
                 &value
             };
-            // Check exact values
-            if let Some(exact) = &field.exact {
-                for e in exact {
-                    if v != e {
-                        return Err(Error::FieldNotInExactList(field_name, v.clone(), e.clone()));
-                    }
-                }
-            }
-            // Check field as number
-            if let Some(x) = v.as_f64() {
-                // Check minimum
-                if let Some(min) = field.min {
-                    if x < min {
-                        return Err(Error::FieldLowerThanMinimum(field_name, x, min));
-                    }   
-                }
-                // Check maximum
-                if let Some(max) = field.max {
-                    if x > max {
-                        return Err(Error::FieldHigherThanMaximum(field_name, x, max));
-                    }
-                }
-            }
-            // Check string length
-            if let Some(x) = v.as_str() {
-                // Check minimum
-                if let Some(min) = field.min_length {
-                    if x.chars().count() < min {
-                        return Err(Error::FieldLengthLowerThanMinimum(field_name, x.chars().count(), min));
-                    }   
-                }
-                // Check maximum
-                if let Some(max) = field.max_length {
-                    if x.chars().count() > max {
-                        return Err(Error::FieldLengthHigherThanMaximum(field_name, x.chars().count(), max));
-                    }
-                }
-            }
-            // Check array length
-            if let Some(x) = v.as_array() {
-                debug!("{field_name} It's array");
-                // Check minimum
-                if let Some(min) = field.min_length {
-                    if x.len() < min {
-                        return Err(Error::FieldLengthLowerThanMinimum(field_name, x.len(), min));
-                    }   
-                }
-                // Check maximum
-                if let Some(max) = field.max_length {
-                    if x.len() > max {
-                        return Err(Error::FieldLengthHigherThanMaximum(field_name, x.len(), max));
-                    }
-                }
-            }
+            
+            field.validate(v)?;
         }
 
 
@@ -197,9 +157,21 @@ impl Proxy {
         &self,
         req: &HttpRequest,
         server: &ServerConfig,
-    ) -> String {
+    ) -> Uri {
         let path = self.config.target_path.as_ref().map(|x| x.as_str()).unwrap_or(req.uri().path());
         let mut url = self.config.target.clone();
+
+        if !url.ends_with("/") {
+            url += "/";
+        }
+
+        if let Some(x) = &self.config.target_path_prefix {
+            url.push_str(&x);
+        }
+
+        if url.ends_with("/") && path.starts_with("/") {
+            url.pop();
+        }
 
         url.push_str(&path);
 
@@ -208,24 +180,35 @@ impl Proxy {
             url.push_str(q);
         }
 
-        utf8_percent_encode(&url, CONTROLS).to_string()
+        Uri::from_str(utf8_percent_encode(&url, CONTROLS).to_string().as_str()).unwrap()
+
     }
 
     pub async fn build_response(
-        mut res: awc::ClientResponse,
+        req: HttpRequest,
+        mut res: ClientResponse<Decoder<Payload>>,
     ) -> ProxyHttpResponse {
         let status = res.status();
 
-        let mut client_resp = HttpResponse::build(status);
+        let mut client_resp = HttpResponseBuilder::new(status);
 
-        for (name, value) in res.headers().iter() {
-            client_resp.append_header((name.clone(), value.clone()));
+        debug!("Headers count: {}", res.headers().len());
+        for (name, value) in res.headers() {
+            client_resp.insert_header((name.clone(), value.clone()));
         }
 
         match res.body().await {
-            Ok(body) => Ok(client_resp.body(body)),
-            Err(_) => Ok(HttpResponse::BadGateway().finish()),
+            Ok(body) => {
+                debug!("Payload Len: {}, {}", body.len(), String::from_utf8_lossy(&body[0..20]));
+                let response = client_resp.body(body);
+                debug!("{response:?}");
+                debug!("Headers count: {}", response.headers().len());
+                Ok(response)
+            },
+            Err(e) => {
+                error!("{e}");
+                Ok(HttpResponse::BadGateway().finish())
+            },
         }
     }
 }
-

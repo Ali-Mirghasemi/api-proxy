@@ -1,6 +1,8 @@
 use actix_web::{HttpResponse, Responder, ResponseError};
 use serde_json::Value;
 
+use crate::config::FieldType;
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -21,6 +23,9 @@ pub enum Error {
     #[cfg(feature = "tls")]
     #[error("RcGen Error {0}")]
     RcGen(#[from] rcgen::Error),
+
+    #[error("Infallible Error {0}")]
+    Infallible(#[from] std::convert::Infallible),
 
     #[error("Not Supported")]
     NotSupported,
@@ -51,6 +56,9 @@ pub enum Error {
 
     #[error("Field length higher than maximum '{0}', {1} > {2}")]
     FieldLengthHigherThanMaximum(String, usize, usize),
+
+    #[error("Field type incorrect '{0}', {1}")]
+    FieldTypeIncorrect(String, FieldType),
 }
 
 pub type ProxyHttpResponse = Result<HttpResponse, Error>;
