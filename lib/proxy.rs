@@ -4,6 +4,7 @@ use actix_http::encoding::Decoder;
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use actix_web::http::{Method, StatusCode, header};
 use awc::body::MessageBody;
+use awc::cookie::Cookie;
 use awc::{Client, ClientResponse, Connector};
 use actix_web::web::Bytes;
 use awc::http::Uri;
@@ -66,17 +67,19 @@ impl Proxy {
         let mut client_req = client
             .request(req.method().clone(), target_url);
 
-        if !self.config.decompress {
+        if self.config.no_decompress {
             client_req = client_req.no_decompress();
         }
 
         // Forward headers
-        for (name, value) in req.headers().iter() {
-            if name == header::HOST {
-                client_req = client_req.insert_header((header::HOST, host.clone()));
-            }
-            else {
-                client_req = client_req.insert_header((name.clone(), value.clone()));
+        if !self.config.no_forward_headers {
+            for (name, value) in req.headers().iter() {
+                if name == header::HOST {
+                    client_req = client_req.insert_header((header::HOST, host.clone()));
+                }
+                else {
+                    client_req = client_req.insert_header((name.clone(), value.clone()));
+                }
             }
         }
 
@@ -86,7 +89,16 @@ impl Proxy {
         }
 
         // Forward cookies
-        
+        if !self.config.no_forward_cookies {
+            for x in req.cookies()?.iter() {
+                client_req = client_req.cookie(x.clone());
+            }
+        }
+
+        // Cookie injection
+        for (k, v) in &self.config.inject_cookies {
+            client_req = client_req.cookie(Cookie::new(k.as_str(), v.as_str()));
+        }
 
         debug!("{client_req:?}");
         let res: ClientResponse<Decoder<Payload>> = match client_req.send_body(body).await {
@@ -202,7 +214,7 @@ impl Proxy {
 
         debug!("Headers count: {}", res.headers().len());
         for (name, value) in res.headers() {
-            if self.config.decompress && name == CONTENT_ENCODING {
+            if !self.config.no_decompress && name == CONTENT_ENCODING {
                 continue;
             }
 

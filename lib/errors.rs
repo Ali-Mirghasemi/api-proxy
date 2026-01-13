@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, Responder, ResponseError};
+use actix_web::{HttpResponse, ResponseError};
 use serde_json::Value;
 
 use crate::config::FieldType;
@@ -26,6 +26,9 @@ pub enum Error {
 
     #[error("Infallible Error {0}")]
     Infallible(#[from] std::convert::Infallible),
+    
+    #[error("Cookie Error {0}")]
+    Cookie(#[from] actix_web::cookie::ParseError),
 
     #[error("Not Supported")]
     NotSupported,

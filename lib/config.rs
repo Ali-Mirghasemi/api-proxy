@@ -41,13 +41,15 @@ pub struct ApiConfig {
     #[cfg_attr(feature = "serde", serde(default))]
     pub target_path:            Option<String>,
     #[cfg_attr(feature = "serde", serde(default))]
-    pub target_path_prefix:          Option<String>,
+    pub target_path_prefix:     Option<String>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub mode:                   Option<Mode>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub header_rules:           Vec<HeaderRule>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub inject_headers:         HashMap<String, String>,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub inject_cookies:         HashMap<String, String>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub json_rules:             Vec<JsonRule>,
     #[cfg_attr(feature = "serde", serde(default))]
@@ -59,7 +61,13 @@ pub struct ApiConfig {
     #[cfg_attr(feature = "serde", serde(default))]
     pub policy:                 ApiPolicy,
     #[cfg_attr(feature = "serde", serde(default))]
-    pub decompress:             bool,
+    pub no_decompress:          bool,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub no_forward_headers:     bool,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub no_forward_cookies:     bool,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub replace_html_links:     bool,
 }
 
 #[derive(Debug, Copy, Clone)]
