@@ -1,6 +1,8 @@
 use actix_http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use actix_http::{BoxedPayloadStream, Payload};
 use actix_http::encoding::Decoder;
+use actix_web::dev::WebService;
+use actix_web::guard::{self, Guard};
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use actix_web::http::{Method, StatusCode, header};
 use awc::body::MessageBody;
@@ -78,7 +80,7 @@ impl Proxy {
             }
         }
 
-        // Check BodyType
+        // Check ContentType
         if let Some(content_type) = &self.config.content_type {
             if let Some(x) =  req.headers().get(CONTENT_TYPE) {
                 let ct = x.to_str()?.to_string();
@@ -195,17 +197,29 @@ impl Proxy {
         req: &HttpRequest,
         server: &ServerConfig,
     ) -> Uri {
-        let path = self.config.target_path.as_ref().map(|x| x.as_str()).unwrap_or(req.uri().path());
+        let mut path = req.path();
         let mut url = self.config.target.clone();
+
+        // Remove proxy path
+        if !self.config.keep_proxy_path {
+            path = path.trim_start_matches(&self.config.path);
+        }
 
         if !url.ends_with("/") {
             url += "/";
         }
 
-        if let Some(x) = &self.config.target_path_prefix {
+        // Add target path
+        if let Some(x) = &self.config.target_path {
             url.push_str(&x);
         }
 
+        // Add path prefix
+        if let Some(x) = &self.config.path_prefix {
+            url.push_str(&x);
+        }
+
+        // Add path
         if url.ends_with("/") && path.starts_with("/") {
             url.pop();
         }

@@ -41,7 +41,7 @@ pub struct ApiConfig {
     #[cfg_attr(feature = "serde", serde(default))]
     pub target_path:            Option<String>,
     #[cfg_attr(feature = "serde", serde(default))]
-    pub target_path_prefix:     Option<String>,
+    pub path_prefix:     Option<String>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub mode:                   Mode,
     #[cfg_attr(feature = "serde", serde(default))]
@@ -72,6 +72,10 @@ pub struct ApiConfig {
     pub no_forward_cookies:     bool,
     #[cfg_attr(feature = "serde", serde(default))]
     pub replace_html_links:     bool,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub include_tail:           bool,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub keep_proxy_path:        bool,
 }
 
 #[derive(Debug, Copy, Clone)]

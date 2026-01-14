@@ -244,6 +244,7 @@ dependencies = [
  "clap",
  "env_logger",
  "futures",
+ "http 0.2.12",
  "log",
  "percent-encoding",
  "rcgen",

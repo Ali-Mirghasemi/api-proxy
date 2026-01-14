@@ -1,3 +1,4 @@
+use actix_web::dev::WebService;
 use actix_web::{App, HttpServer, web, HttpRequest, HttpResponse};
 use actix_web::http::header;
 use std::sync::Arc;
@@ -39,9 +40,15 @@ impl Server {
             for api in &server.apis {
                 let api = api.clone();
                 let server = server.clone();
+                let path = if api.include_tail {
+                    api.path.clone() + "{tail:.*}"
+                }
+                else {
+                    api.path.clone()
+                };
 
                 app = app.route(
-                    &api.path.clone(),
+                    &path,
                     web::to(move |req: HttpRequest, body: web::Bytes| {
                         Self::handle_request(req, body, server.clone(), api.clone(), is_https)
                     }),

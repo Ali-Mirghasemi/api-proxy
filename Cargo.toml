@@ -48,6 +48,7 @@ thiserror = { version = "2.0", default-features = false }
 actix-web = { version = "4.12", default-features = false, features = ["compat", "http2", "macros", "cookies"]}
 actix-rt = { version = "2.11", default-features = false }
 actix-http = { version = "3.10", default-features = false, features = ["http2", "ws", "compress-brotli", "compress-gzip", "compress-zstd"] }
+http = { version = "0.2", default-features = false}
 awc = { version = "3.8", default-features = false, features = ["cookies", "compress-brotli", "compress-gzip", "compress-zstd"] }
 futures = { version = "0.3", default-features = false }
 percent-encoding = { version = "2.3", default-features = false }

@@ -26,17 +26,8 @@ mode = "raw"
 [[servers.apis]]
 path = "/zoomg"
 target = "https://www.zoomg.ir"
-# target_prefix = "/"
-target_path = "/"
-mode = "raw"
-decompress = true
-
-[[servers.apis]]
-path = "/zoomg/{tail}"
-target = "https://www.zoomg.ir"
-replace_links = false
-target_prefix = "/"
+# path_prefix = "/"
 # target_path = "/"
 mode = "raw"
-decompress = false   
-
+decompress = true
+include_tail = true
