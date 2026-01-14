@@ -43,7 +43,11 @@ pub struct ApiConfig {
     #[cfg_attr(feature = "serde", serde(default))]
     pub target_path_prefix:     Option<String>,
     #[cfg_attr(feature = "serde", serde(default))]
-    pub mode:                   Option<Mode>,
+    pub mode:                   Mode,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub content_type:           Option<String>,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub method:                 Option<String>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub header_rules:           Vec<HeaderRule>,
     #[cfg_attr(feature = "serde", serde(default))]
@@ -51,7 +55,7 @@ pub struct ApiConfig {
     #[cfg_attr(feature = "serde", serde(default))]
     pub inject_cookies:         HashMap<String, String>,
     #[cfg_attr(feature = "serde", serde(default))]
-    pub json_rules:             Vec<JsonRule>,
+    pub rules:                  Vec<Rule>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub payload_limit:          Option<usize>,
     #[cfg_attr(feature = "serde", serde(default))]
@@ -103,7 +107,7 @@ pub enum HeaderAction {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-pub struct JsonRule {
+pub struct Rule {
     #[cfg_attr(feature = "serde", serde(alias = "name"))]
     pub field:                  String,                 // supports nested fields, e.g., sensor.readings[0].value
     #[cfg_attr(feature = "serde", serde(default))]
@@ -203,7 +207,7 @@ impl Config {
 
 }
 
-impl JsonRule {
+impl Rule {
     pub fn validate(&self, v: &Value) -> Result<(), Error> {
         self.validate_rule(v, false)
     }

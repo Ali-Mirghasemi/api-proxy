@@ -45,15 +45,16 @@ tls = [
 
 [dependencies]
 thiserror = { version = "2.0", default-features = false }
-actix-web = { version = "4.12", default-features = true, features = ["compat", "http2", "macros"]}
-actix-rt = { version = "2.11", default-features = true }
-actix-http = { version = "3.10", default-features = true, features = ["http2", "ws", "compress-brotli", "compress-gzip", "compress-zstd"] }
-awc = { version = "3.8", default-features = true, features = ["cookies", "compress-brotli", "compress-gzip", "compress-zstd"] }
+actix-web = { version = "4.12", default-features = false, features = ["compat", "http2", "macros", "cookies"]}
+actix-rt = { version = "2.11", default-features = false }
+actix-http = { version = "3.10", default-features = false, features = ["http2", "ws", "compress-brotli", "compress-gzip", "compress-zstd"] }
+awc = { version = "3.8", default-features = false, features = ["cookies", "compress-brotli", "compress-gzip", "compress-zstd"] }
 futures = { version = "0.3", default-features = false }
 percent-encoding = { version = "2.3", default-features = false }
 v_htmlescape = { version = "0.15", default-features = false }
 log = { version = "0.4", default-features = false }
 env_logger = { version = "0.11", default-features = false }
+regex = { version = "1.12", default-features = false }
 
 # Optional crates
 serde = { version = "1.0", default-features = false, optional = true }
@@ -61,5 +62,5 @@ serde_json = { version = "1.0", default-features = false, optional = true }
 toml = { version = "0.9", default-features = false, features = ["serde", "parse"], optional = true }
 clap = { version = "4.5", default-features = false, optional = true }
 rustls = { version = "0.20", features = [], optional = true }
-rustls-pemfile = { version = "1.0", default-features = true, features = [], optional = true }
+rustls-pemfile = { version = "1.0", default-features = false, features = [], optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }

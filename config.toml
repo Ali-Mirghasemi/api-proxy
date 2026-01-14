@@ -10,7 +10,7 @@ target_path = "/sum"
 payload_limit = 128
 mode = "rule"
 
-[[servers.apis.json_rules]]
+[[servers.apis.rules]]
 field = ""
 min_array_length = 2
 max_array_length = 5

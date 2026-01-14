@@ -30,6 +30,12 @@ pub enum Error {
     #[error("Cookie Error {0}")]
     Cookie(#[from] actix_web::cookie::ParseError),
 
+    #[error("ParseUtf8 Error {0}")]
+    ParseUtf8(#[from] std::string::FromUtf8Error),
+
+    #[error("ToStr Error {0}")]
+    ToStr(#[from] actix_http::header::ToStrError),
+
     #[error("Not Supported")]
     NotSupported,
 
@@ -62,6 +68,12 @@ pub enum Error {
 
     #[error("Field type incorrect '{0}', {1}")]
     FieldTypeIncorrect(String, FieldType),
+
+    #[error("API invalid method '{0}' != {1}")]
+    InvalidMethod(String, String),
+
+    #[error("API invalid content_type '{0}' != {1}")]
+    InvalidContentType(String, String),
 }
 
 pub type ProxyHttpResponse = Result<HttpResponse, Error>;
