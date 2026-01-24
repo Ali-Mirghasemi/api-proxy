@@ -1,3 +1,20 @@
+//! HTTP request proxying, validation, and response handling.
+//!
+//! This module implements the core proxy logic:
+//! - Forwarding incoming HTTP requests to upstream targets
+//! - Optional payload validation (JSON rules)
+//! - Header and cookie forwarding / injection
+//! - Payload size limits
+//! - Method and Content-Type validation
+//! - Response rewriting (HTML link replacement)
+//!
+//! The proxy operates in two modes:
+//! - [`Mode::Raw`]  — Simple forwarding with minimal checks
+//! - [`Mode::Rule`] — Payload validation before forwarding
+//!
+//! This module is designed to be used by the HTTP server layer
+//! (see [`crate::server`]).
+
 use actix_http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use actix_http::{BoxedPayloadStream, Payload};
 use actix_http::encoding::Decoder;
@@ -22,19 +39,32 @@ use log::{debug, error};
 use crate::config::{ApiConfig, FieldType, Rule, Mode, ServerConfig};
 use crate::errors::{Error, ProxyHttpResponse};
 
+/// API proxy instance.
+///
+/// A `Proxy` represents a single API endpoint configuration
+/// and is responsible for validating and forwarding requests
+/// according to its [`ApiConfig`].
+#[derive(Debug, Clone)]
 pub struct Proxy {
+    /// API-specific configuration.
     config:             ApiConfig,
 }
 
 impl Proxy {
-
+    /// Create a new proxy instance for an API configuration.
     pub fn new(config: ApiConfig) -> Self {
         Self {
             config,
         }
     }
 
-    /// Shared HTTP client
+    /// Create a shared HTTP client for forwarding requests upstream.
+    ///
+    /// The client:
+    /// - Disables automatic redirects
+    /// - Does not inject default headers
+    ///
+    /// This ensures full control over forwarded requests.
     pub fn http_client() -> Client {
         Client::builder()
             .disable_redirects()
@@ -42,7 +72,14 @@ impl Proxy {
             .finish()
     }
 
-    /// Entry point called from server.rs
+    /// Entry point for handling an incoming request.
+    ///
+    /// Dispatches the request to the appropriate forwarding
+    /// implementation based on the configured [`Mode`].
+    ///
+    /// # Modes
+    /// - [`Mode::Raw`]  → [`Self::forward_raw`]
+    /// - [`Mode::Rule`] → [`Self::forward_rule`]
     pub async fn forward(
         &self,
         req: HttpRequest,
@@ -55,6 +92,17 @@ impl Proxy {
         }
     }
 
+    /// Forward a request without payload validation.
+    ///
+    /// This mode performs:
+    /// - Payload size checks
+    /// - HTTP method validation
+    /// - Content-Type validation
+    /// - Header and cookie forwarding
+    /// - Header and cookie injection
+    /// - Response forwarding and optional rewriting
+    ///
+    /// No JSON validation is applied in this mode.
     pub async fn forward_raw(
         &self,
         req: HttpRequest,
@@ -141,6 +189,19 @@ impl Proxy {
         self.build_response(req, res).await
     }
 
+    /// Forward a request after validating JSON payload rules.
+    ///
+    /// The request body is parsed as JSON and validated
+    /// against all configured [`Rule`] definitions.
+    ///
+    /// If validation passes, the request is forwarded using
+    /// [`Self::forward_raw`].
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - JSON parsing fails
+    /// - A required field is missing
+    /// - A validation rule fails
     pub async fn forward_rule(
         &self,
         req: HttpRequest,
@@ -192,6 +253,13 @@ impl Proxy {
         self.forward_raw(req, body, server).await
     }
 
+    /// Build the upstream target URL for a request.
+    ///
+    /// This function:
+    /// - Optionally removes the proxy path
+    /// - Appends configured target paths and prefixes
+    /// - Preserves query parameters
+    /// - Percent-encodes the final URL
     pub fn build_target_url(
         &self,
         req: &HttpRequest,
@@ -235,6 +303,13 @@ impl Proxy {
 
     }
 
+    /// Build the client-facing response from an upstream response.
+    ///
+    /// This function:
+    /// - Copies upstream status code
+    /// - Forwards headers (with optional decompression handling)
+    /// - Optionally rewrites HTML links
+    /// - Returns a streaming-safe response body
     pub async fn build_response(
         &self,
         req: HttpRequest,
@@ -282,6 +357,14 @@ impl Proxy {
         }
     }
 
+    /// Replace relative references in HTML content.
+    ///
+    /// This function rewrites attributes:
+    /// - `href`
+    /// - `src`
+    /// - `data-href`
+    ///
+    /// Only relative URLs (`/...`) are modified.
     pub fn replace_all_refs(html: &str, prefix: &str) -> String {
         // Matches href, src, or data-href attributes
         // Group 1: Attribute name

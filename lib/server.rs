@@ -1,3 +1,15 @@
+//! HTTP and HTTPS server orchestration for the API proxy.
+//!
+//! This module is responsible for:
+//! - Spawning one or more Actix-Web servers
+//! - Binding configured API routes
+//! - Handling HTTP → HTTPS redirection
+//! - Initializing TLS (via rustls) when enabled
+//! - Dispatching incoming requests to the [`Proxy`] layer
+//!
+//! Each server instance is configured using [`ServerConfig`]
+//! and may expose multiple API proxy routes.
+
 use actix_web::dev::WebService;
 use actix_web::{App, HttpServer, web, HttpRequest, HttpResponse};
 use actix_web::http::header;
@@ -20,17 +32,34 @@ use crate::proxy::Proxy;
 
 use log::{info, error};
 
+/// HTTP/HTTPS server instance.
+///
+/// A `Server` owns a single [`ServerConfig`] and is responsible
+/// for binding listeners, registering routes, and forwarding
+/// requests to the proxy layer.
 pub struct Server {
+    /// Server configuration.
     config:     ServerConfig,
 }
 
 impl Server {
+    /// Create a new server instance from configuration.
     pub fn new(config: ServerConfig) -> Self {
         Self {
             config,
         }
     }
-    /// Run one HTTP/HTTPS server instance
+    
+    /// Run a single HTTP/HTTPS server instance.
+    ///
+    /// This method:
+    /// - Builds the Actix application
+    /// - Registers all configured API routes
+    /// - Starts an HTTP listener
+    /// - Optionally starts an HTTPS listener (TLS feature)
+    ///
+    /// If HTTPS is enabled, both HTTP and HTTPS servers
+    /// are run concurrently.
     pub async fn run(self) -> std::io::Result<()> {
         let server = Arc::new(self.config);
 
@@ -111,7 +140,10 @@ impl Server {
         Ok(())
     }
 
-    /// Launch all configured servers
+    /// Launch all configured servers concurrently.
+    ///
+    /// Each server runs in its own asynchronous task.
+    /// A failure in one server does not stop others.
     pub async fn run_servers(servers: Vec<ServerConfig>) -> std::io::Result<()> {
         let mut handles = Vec::new();
 
@@ -128,7 +160,14 @@ impl Server {
         Ok(())
     }
 
-    /// Handle request (redirect or proxy)
+    /// Handle an incoming HTTP request.
+    ///
+    /// This function:
+    /// - Applies HTTP → HTTPS redirection (if enabled)
+    /// - Dispatches the request to the [`Proxy`] layer
+    ///
+    /// Redirection behavior can be configured globally
+    /// (server-level) or overridden per API.
     pub async fn handle_request(
         req: HttpRequest,
         body: web::Bytes,
@@ -147,7 +186,10 @@ impl Server {
         Proxy::new(api).forward(req, body, server).await
     }
 
-    /// Build 301 redirect response
+    /// Build a `301 Moved Permanently` redirect to HTTPS.
+    ///
+    /// The original request URI is preserved and the
+    /// scheme is rewritten to `https`.
     pub fn redirect_to_https(req: &HttpRequest) -> ProxyHttpResponse {
         let host = req
             .headers()
@@ -163,7 +205,18 @@ impl Server {
             .finish())
     }
 
-    /// Load rustls configuration from PEM files
+    /// Load a rustls server configuration from PEM files.
+    ///
+    /// This function:
+    /// - Loads X.509 certificates from a PEM file
+    /// - Loads a PKCS#8 private key
+    /// - Builds a rustls [`ServerConfig`]
+    ///
+    /// # Panics
+    /// Panics if:
+    /// - No certificates are found
+    /// - No private keys are found
+    /// - The TLS configuration is invalid
     #[cfg(feature = "tls")]
     pub fn load_rustls_config(cert_path: &str, key_path: &str) -> RustlsConfig {
         use rustls::{Certificate, PrivateKey};
