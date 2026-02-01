@@ -40,7 +40,7 @@ pub enum Error {
     IpAddr(#[from] std::net::AddrParseError),
 
     /// RcGen error.
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "__tls")]
     #[error("RcGen Error {0}")]
     RcGen(#[from] rcgen::Error),
 

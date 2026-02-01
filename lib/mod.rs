@@ -22,5 +22,5 @@ pub mod config;
 pub mod server;
 pub mod proxy;
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "__tls")]
 pub mod cert;
