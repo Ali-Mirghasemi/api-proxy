@@ -51,7 +51,7 @@ rustls-0_23 = [
     "dep:rustls-pemfile",
     "dep:rcgen",
     "actix-web/rustls-0_23",
-    "awc/rustls"
+    "awc/rustls-0_23-webpki-roots"
 ]
 
 __tls = []
