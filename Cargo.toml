@@ -71,7 +71,7 @@ env_logger = { version = "0.11", default-features = false }
 regex = { version = "1.12", default-features = false }
 
 # Optional crates
-serde = { version = "1.0", default-features = false, optional = true }
+serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 serde_json = { version = "1.0", default-features = false, optional = true }
 toml = { version = "0.9", default-features = false, features = ["serde", "parse"], optional = true }
 clap = { version = "4.5", default-features = false, optional = true }
