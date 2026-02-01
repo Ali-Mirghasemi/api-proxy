@@ -17,13 +17,21 @@ use std::sync::Arc;
 use std::io::{BufReader};
 use std::fs::File;
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "rustls")]
 use rustls::ServerConfig as RustlsConfig;
-#[cfg(feature = "tls")]
+#[cfg(feature = "rustls")]
 // use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-#[cfg(feature = "tls")]
+#[cfg(feature = "rustls")]
 use rustls_pemfile::Item;
-#[cfg(feature = "tls")]
+
+#[cfg(feature = "rustls-0_23")]
+use rustls_0_23::ServerConfig as RustlsConfig;
+#[cfg(feature = "rustls-0_23")]
+use rustls_0_23::pki_types::{CertificateDer, PrivateKeyDer};
+#[cfg(feature = "rustls-0_23")]
+use rustls_pemfile::Item;
+
+#[cfg(feature = "__tls")]
 use crate::cert::ensure_cert;
 
 use crate::config::{ServerConfig, ApiConfig};
@@ -99,7 +107,7 @@ impl Server {
         info!("HTTP server '{}' listening on {}", server.name, server.listen);
 
         let https_server = if server.https {
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "__tls")]
             {
                 let cert = server.cert_file.as_ref().expect("cert_file required for HTTPS");
                 let key  = server.key_file.as_ref().expect("key_file required for HTTPS");
@@ -110,16 +118,27 @@ impl Server {
                 let tls_config = Self::load_rustls_config(cert, key);
 
                 let _server = server.clone();
-                Some(
-                    HttpServer::new(move || {
+
+                let mut x = HttpServer::new(move || {
                         build_app(_server.clone(), true) // ✅ HTTPS
-                    })
-                    .bind_rustls(&server.listen, tls_config)?
-                    .run()
+                    });
+
+                #[cfg(feature = "rustls")]
+                {
+                    x = x.bind_rustls(&server.listen, tls_config)?;
+                }
+
+                #[cfg(feature = "rustls-0_23")]
+                {
+                    x = x.bind_rustls_0_23(&server.listen, tls_config)?;
+                }
+
+                Some(
+                    x.run()
                 )
             }
 
-            #[cfg(not(feature = "tls"))]
+            #[cfg(not(feature = "__tls"))]
             {
                 None
             }
@@ -217,7 +236,7 @@ impl Server {
     /// - No certificates are found
     /// - No private keys are found
     /// - The TLS configuration is invalid
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "rustls")]
     pub fn load_rustls_config(cert_path: &str, key_path: &str) -> RustlsConfig {
         use rustls::{Certificate, PrivateKey};
 
@@ -260,6 +279,52 @@ impl Server {
 
         RustlsConfig::builder()
             .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(certs, keys.remove(0))
+            .expect("Invalid TLS config")
+    }
+
+    #[cfg(feature = "rustls-0_23")]
+    pub fn load_rustls_config(cert_path: &str, key_path: &str) -> RustlsConfig {
+
+        let cert_file = File::open(cert_path).expect("Cannot open cert file");
+        let key_file  = File::open(key_path).expect("Cannot open key file");
+
+        let mut cert_reader = BufReader::new(cert_file);
+        let mut key_reader  = BufReader::new(key_file);
+
+        let certs: Vec<CertificateDer> =
+            rustls_pemfile::read_all(&mut cert_reader)
+                .map(|x| {
+                    x.into_iter().filter_map(|item| {
+                        match item {
+                            Item::X509Certificate(cert) => {
+                                Some(CertificateDer::from(cert))
+                            }
+                            _ => None,
+                        }
+                    })
+                    .collect::<Vec<CertificateDer>>()
+                })
+                .unwrap();
+
+        assert!(!certs.is_empty(), "No certificates found");
+
+        let mut keys: Vec<PrivateKeyDer> =
+            rustls_pemfile::read_all(&mut key_reader)
+                .map(|x| {
+                    x.into_iter().filter_map(|item| {
+                        match item {
+                            Item::PKCS8Key(key) => Some(PrivateKeyDer::try_from(key).unwrap()),
+                            _ => None,
+                        }
+                    }).collect()
+                })
+                .unwrap();
+
+        assert!(!keys.is_empty(), "No private keys found");
+
+        RustlsConfig::builder()
             .with_no_client_auth()
             .with_single_cert(certs, keys.remove(0))
             .expect("Invalid TLS config")

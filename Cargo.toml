@@ -16,7 +16,8 @@ path = "src/main.rs"
 full = [
     "toml",
     "json",
-    "tls",
+    # "rustls",
+    "rustls-0_23",
 ]
 default = [
     "full"
@@ -35,13 +36,25 @@ toml = [
 clap = [
     "dep:clap",
 ]
-tls = [
+rustls = [
+    "__tls",
     "dep:rustls",
     "dep:rustls-pemfile",
     "dep:rcgen",
     "actix-web/rustls",
     "awc/rustls"
 ]
+
+rustls-0_23 = [
+    "__tls",
+    "dep:rustls-0_23",
+    "dep:rustls-pemfile",
+    "dep:rcgen",
+    "actix-web/rustls-0_23",
+    "awc/rustls"
+]
+
+__tls = []
 
 [dependencies]
 thiserror = { version = "2.0", default-features = false }
@@ -63,5 +76,6 @@ serde_json = { version = "1.0", default-features = false, optional = true }
 toml = { version = "0.9", default-features = false, features = ["serde", "parse"], optional = true }
 clap = { version = "4.5", default-features = false, optional = true }
 rustls = { version = "0.20", features = [], optional = true }
+rustls-0_23 = { package ="rustls", version = "0.23", features = [], optional = true }
 rustls-pemfile = { version = "1.0", default-features = false, features = [], optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }
