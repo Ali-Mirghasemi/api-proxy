@@ -32,7 +32,7 @@ use crate::errors::Error;
 ///
 /// A configuration contains one or more proxy servers, each with
 /// independent listeners, TLS settings, and API routing rules.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct Config {
     /// List of configured proxy servers.
@@ -43,7 +43,7 @@ pub struct Config {
 ///
 /// Each server listens on a socket address and may expose
 /// multiple API routes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct ServerConfig {
     /// Human-readable server name.
@@ -72,7 +72,7 @@ pub struct ServerConfig {
 }
 
 /// Configuration for a single proxied API endpoint.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct ApiConfig {
     /// Incoming request path to match.
@@ -167,7 +167,7 @@ impl Default for Mode {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct HeaderRule {
     pub name:                   String,
@@ -184,11 +184,17 @@ pub enum HeaderAction {
     Allow,
 }
 
+impl Default for HeaderAction {
+    fn default() -> Self {
+        Self::Allow
+    }
+}
+
 /// Payload validation rule.
 ///
 /// Rules are applied to JSON fields and support nested
 /// paths such as `sensor.readings[0].value`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct Rule {
     /// Field name or JSON path.
@@ -240,7 +246,7 @@ pub enum ApiPolicy {
 }
 
 /// Rate limiting configuration.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct RateLimitConfig {
     /// Allowed requests per second.
@@ -260,6 +266,12 @@ pub enum FieldType {
     String,
     Array,
     Object,
+}
+
+impl Default for FieldType {
+    fn default() -> Self {
+        Self::String
+    }
 }
 
 impl Config {
