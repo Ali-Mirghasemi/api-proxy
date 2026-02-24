@@ -24,3 +24,9 @@ pub mod proxy;
 
 #[cfg(feature = "__tls")]
 pub mod cert;
+
+pub mod deps {
+    pub use awc;
+    pub use actix_web;
+    pub use actix_http;
+}
