@@ -56,19 +56,30 @@ rustls-0_23 = [
 
 __tls = []
 
+[patch.crates-io]
+actix-http = { git = "https://github.com/Ali-Mirghasemi/actix-web", branch = "develop" }
+awc = { git = "https://github.com/Ali-Mirghasemi/actix-web", branch = "develop" }
+
 [dependencies]
 thiserror = { version = "2.0", default-features = false }
-actix-web = { version = "4.12", default-features = false, features = ["compat", "http2", "macros", "cookies"]}
+actix = { version = "0.13", default-features = false }
+actix-web = { version = "4.13", default-features = false, features = ["compat", "http2", "macros", "cookies"]}
 actix-rt = { version = "2.11", default-features = false }
-actix-http = { version = "3.10", default-features = false, features = ["http2", "ws", "compress-brotli", "compress-gzip", "compress-zstd"] }
-http = { version = "0.2", default-features = false}
-awc = { version = "3.8", default-features = false, features = ["cookies", "compress-brotli", "compress-gzip", "compress-zstd"] }
+actix-ws = { version = "0.3", default-features = false }
+http = { version = "0.2", default-features = false }
+actix-http = { version = "3.12", default-features = false, features = ["http2", "ws", "compress-brotli", "compress-gzip", "compress-zstd"] }
+awc = { version = "3.8", default-features = true, features = ["cookies", "compress-brotli", "compress-gzip", "compress-zstd"] }
 futures = { version = "0.3", default-features = false }
+futures-util = { version = "0.3", default-features = false }
 percent-encoding = { version = "2.3", default-features = false }
 v_htmlescape = { version = "0.15", default-features = false }
 log = { version = "0.4", default-features = false }
 env_logger = { version = "0.11", default-features = false }
-regex = { version = "1.12", default-features = false }
+regex = { version = "1.12", default-features = true }
+scraper = { version = "0.25", default-features = true }
+url = { version = "2.5", default-features = true }
+tokio = { version = "1.49", default-features = false, features = ["rt", "macros"] }
+bytestring = { version = "1.5", default-features = false }
 
 # Optional crates
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
@@ -76,6 +87,6 @@ serde_json = { version = "1.0", default-features = false, optional = true }
 toml = { version = "0.9", default-features = false, features = ["serde", "parse"], optional = true }
 clap = { version = "4.5", default-features = false, optional = true }
 rustls = { version = "0.20", default-features = false, features = ["logging", "tls12"], optional = true }
-rustls-0_23 = { package ="rustls", version = "0.23", default-features = false, features = ["logging", "std", "tls12"], optional = true }
+rustls-0_23 = { package ="rustls", version = "0.23", default-features = false, features = ["logging", "std", "tls12", "ring"], optional = true }
 rustls-pemfile = { version = "1.0", default-features = false, features = [], optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }

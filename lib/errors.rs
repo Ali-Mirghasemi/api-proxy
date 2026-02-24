@@ -60,6 +60,10 @@ pub enum Error {
     #[error("ToStr Error {0}")]
     ToStr(#[from] actix_http::header::ToStrError),
 
+    /// Actix error.
+    #[error("Actix Error {0}")]
+    Actix(#[from] actix_web::Error),
+
     /// Unsupported configuration or feature.
     #[error("Not Supported")]
     NotSupported,

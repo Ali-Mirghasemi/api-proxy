@@ -1,33 +1,27 @@
+# ---------------- Panel Server ----------------
+
 [[servers]]
-name = "test"
-listen = "0.0.0.0:8080"
+name = "panel"
+listen = "0.0.0.0:8000"
 https = false
 
 [[servers.apis]]
-path = "/api/sum"
-target = "http://80.253.141.222:10888"
-target_path = "/sum"
-payload_limit = 128
-mode = "rule"
-
-[[servers.apis.rules]]
-field = ""
-min_array_length = 2
-max_array_length = 5
-min = 1
-max = 10
-
-[[servers.apis]]
-path = "/google"
-target = "https://www.google.com"
-target_path = "/"
-mode = "raw"
-
-[[servers.apis]]
-path = "/zoomg"
-target = "https://www.zoomg.ir"
-# path_prefix = "/"
-# target_path = "/"
-mode = "raw"
-decompress = true
+path = "/"
+target = "http://192.168.125.50"
+replace_html_links = false
 include_tail = true
+payload_limit = 16777216 # 16MB
+
+# ---------------- Web Socket Server ----------------
+
+[[servers]]
+name = "websocket"
+listen = "0.0.0.0:12351"
+https = false
+
+[[servers.apis]]
+path = "/"
+target = "ws://192.168.125.50:12351"
+replace_html_links = false
+include_tail = true
+payload_limit = 16777216 # 16MB

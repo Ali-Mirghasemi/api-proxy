@@ -38,7 +38,7 @@ use crate::config::{ServerConfig, ApiConfig};
 use crate::errors::ProxyHttpResponse;
 use crate::proxy::Proxy;
 
-use log::{info, error};
+use log::{debug, error, info};
 
 /// HTTP/HTTPS server instance.
 ///
@@ -69,6 +69,8 @@ impl Server {
     /// If HTTPS is enabled, both HTTP and HTTPS servers
     /// are run concurrently.
     pub async fn run(self) -> std::io::Result<()> {
+        debug!("{:#?}", self.config);
+
         let server = Arc::new(self.config);
 
         let build_app = |server: Arc<ServerConfig>, is_https| {
@@ -86,8 +88,8 @@ impl Server {
 
                 app = app.route(
                     &path,
-                    web::to(move |req: HttpRequest, body: web::Bytes| {
-                        Self::handle_request(req, body, server.clone(), api.clone(), is_https)
+                    web::to(move |req: HttpRequest, payload: web::Payload| {
+                        Self::handle_request(req, payload, server.clone(), api.clone(), is_https)
                     }),
                 );
             }
@@ -106,7 +108,7 @@ impl Server {
 
         info!("HTTP server '{}' listening on {}", server.name, server.listen);
 
-        let https_server = if server.https {
+        let https_server: Option<actix_web::dev::Server> = if server.https {
             #[cfg(feature = "__tls")]
             {
                 let cert = server.cert_file.as_ref().expect("cert_file required for HTTPS");
@@ -189,7 +191,7 @@ impl Server {
     /// (server-level) or overridden per API.
     pub async fn handle_request(
         req: HttpRequest,
-        body: web::Bytes,
+        payload: web::Payload,
         server: Arc<ServerConfig>,
         api: ApiConfig,
         is_https: bool,
@@ -202,7 +204,7 @@ impl Server {
         }
 
         // 🔜 proxy logic will be called here
-        Proxy::new(api).forward(req, body, server).await
+        Proxy::new(api).forward(req, payload, server).await
     }
 
     /// Build a `301 Moved Permanently` redirect to HTTPS.

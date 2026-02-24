@@ -20,16 +20,21 @@ use actix_http::{BoxedPayloadStream, Payload};
 use actix_http::encoding::Decoder;
 use actix_web::dev::WebService;
 use actix_web::guard::{self, Guard};
-use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, HttpResponseBuilder, web};
 use actix_web::http::{Method, StatusCode, header};
+use actix_ws::Message;
 use awc::body::MessageBody;
 use awc::cookie::Cookie;
 use awc::{Client, ClientResponse, Connector};
-use actix_web::web::Bytes;
+use actix_web::web::{Bytes, BytesMut};
 use awc::http::Uri;
+use bytestring::ByteString;
+use futures::{SinkExt, StreamExt};
 use percent_encoding::{CONTROLS, utf8_percent_encode};
 use regex::Regex;
+use scraper::{Html, Selector};
 use serde_json::Value;
+use url::Url;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::usize;
@@ -72,6 +77,14 @@ impl Proxy {
             .finish()
     }
 
+    fn is_websocket(req: &HttpRequest) -> bool {
+        req.headers()
+            .get("upgrade")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.eq_ignore_ascii_case("websocket"))
+            .unwrap_or(false)
+    }
+
     /// Entry point for handling an incoming request.
     ///
     /// Dispatches the request to the appropriate forwarding
@@ -83,13 +96,39 @@ impl Proxy {
     pub async fn forward(
         &self,
         req: HttpRequest,
-        body: Bytes,
+        payload: web::Payload,
         server: Arc<ServerConfig>,
     ) -> ProxyHttpResponse {
+        if Self::is_websocket(&req) {
+            return self.ws_proxy(req, payload).await.map_err(Error::from);
+        }
+
+        let body = payload.to_bytes().await?;
+
         match self.config.mode {
             Mode::Raw => self.forward_raw(req, body, server).await,
             Mode::Rule => self.forward_rule(req, body, server).await,
         }
+    }
+
+    pub async fn payload_to_bytes(
+       mut payload: web::Payload,
+        limit: usize,
+    ) -> Result<Bytes, actix_web::Error> {
+
+        let mut body = BytesMut::new();
+
+        while let Some(chunk) = payload.next().await {
+            let chunk = chunk?;
+
+            if body.len() + chunk.len() > limit {
+                return Err(actix_web::error::ErrorPayloadTooLarge("payload too large"));
+            }
+
+            body.extend_from_slice(&chunk);
+        }
+
+        Ok(body.freeze())
     }
 
     /// Forward a request without payload validation.
@@ -111,7 +150,7 @@ impl Proxy {
     ) -> ProxyHttpResponse {
         let client = Self::http_client();
 
-        let target_url = self.build_target_url(&req, &server);
+        let target_url = self.build_target_url(&req);
         debug!("RAW proxy → {}", target_url);
 
         // Check payload limit
@@ -262,8 +301,7 @@ impl Proxy {
     /// - Percent-encodes the final URL
     pub fn build_target_url(
         &self,
-        req: &HttpRequest,
-        server: &ServerConfig,
+        req: &HttpRequest
     ) -> Uri {
         let mut path = req.path();
         let mut url = self.config.target.clone();
@@ -328,9 +366,9 @@ impl Proxy {
             client_resp.insert_header((name.clone(), value.clone()));
         }
 
-        match res.body().await {
+        match res.body().limit(self.config.payload_limit.unwrap_or(2 * 1024 * 1024)).await {
             Ok(body) => {
-                debug!("Payload Len: {}, {}", body.len(), String::from_utf8_lossy(&body[0..20]));
+                debug!("Payload Len: {}, {}", body.len(), String::from_utf8_lossy(&body[0..body.len().min(20)]));
                  // Check if content type is HTML
                 let is_html = res.headers()
                     .get(header::CONTENT_TYPE)
@@ -340,7 +378,7 @@ impl Proxy {
 
                 let final_body = if is_html && self.config.replace_html_links {
                     let body_str = String::from_utf8(body.to_vec())?;
-                    Bytes::copy_from_slice(Self::replace_all_refs(&body_str, "").as_bytes())
+                    Bytes::copy_from_slice(Self::rewrite_response(req.content_type(), &body_str, "", &self.config.target).as_bytes())
                 } 
                 else {
                     body
@@ -386,4 +424,231 @@ impl Proxy {
             format!("{}={}{}{}", attr_name, quote, new_value, quote)
         }).to_string()
     }
+
+    /// Rewrites all links inside HTML, JS and CSS content
+    pub fn rewrite_response(
+        content_type: &str,
+        body: &str,
+        proxy_prefix: &str,
+        base_url: &str,
+    ) -> String {
+        if content_type.contains("text/html") {
+            Self::rewrite_html(body, proxy_prefix, base_url)
+        } 
+        else if content_type.contains("javascript") {
+            Self::rewrite_js(body, proxy_prefix)
+        } 
+        else if content_type.contains("text/css") {
+            Self::rewrite_css(body, proxy_prefix)
+        } 
+        else {
+            body.to_string()
+        }
+    }
+
+    fn rewrite_html(html: &str, prefix: &str, base: &str) -> String {
+        let document = Html::parse_document(html);
+
+        let attrs = [
+            "href", "src", "action", "data", "poster"
+        ];
+
+        let selector = Selector::parse("*").unwrap();
+
+        let mut output = html.to_string();
+
+        for element in document.select(&selector) {
+            for attr in &attrs {
+                if let Some(value) = element.value().attr(attr) {
+                    if let Some(new_url) = Self::rewrite_url(value, prefix, base) {
+                        output = output.replace(value, &new_url);
+                    }
+                }
+            }
+        }
+
+        // Rewrite inline CSS and JS blocks
+        output = Self::rewrite_css(&output, prefix);
+        output = Self::rewrite_js(&output, prefix);
+
+        output
+    }
+
+    fn rewrite_url(url: &str, prefix: &str, base: &str) -> Option<String> {
+        // Ignore special schemes
+        if url.starts_with("data:")
+            || url.starts_with("javascript:")
+            || url.starts_with("#")
+        {
+            return None;
+        }
+
+        let base = Url::parse(base).ok()?;
+        let absolute = base.join(url).ok()?;
+        debug!("RewriteURL: {}{}", prefix, absolute);
+        Some(format!("{}{}", prefix, absolute))
+    }
+
+    fn rewrite_js(js: &str, prefix: &str) -> String {
+        let re = Regex::new(
+            r#"(fetch|axios|get|post|WebSocket)\s*\(\s*["']([^"']+)["']"#,
+        )
+        .unwrap();
+
+        re.replace_all(js, |caps: &regex::Captures| {
+            let func = &caps[1];
+            let url = &caps[2];
+
+            if url.starts_with("http") || url.starts_with("/") {
+                format!(r#"{}("{}{}")"#, func, prefix, url)
+            } else {
+                caps[0].to_string()
+            }
+        })
+        .to_string()
+    }
+
+    fn rewrite_css(css: &str, prefix: &str) -> String {
+        let re = Regex::new(r#"url\((["']?)([^"')]+)\1\)"#).unwrap();
+
+        re.replace_all(css, |caps: &regex::Captures| {
+            let quote = &caps[1];
+            let url = &caps[2];
+
+            if url.starts_with("http") || url.starts_with("/") {
+                format!("url({}{}{})", quote, prefix.to_string() + url, quote)
+            } else {
+                caps[0].to_string()
+            }
+        })
+        .to_string()
+    }
+
+    pub async fn ws_proxy(
+        &self,
+        req: HttpRequest,
+        payload: web::Payload,
+    ) -> actix_web::Result<HttpResponse> {
+        let target = self.build_target_url(&req);
+        debug!("Websocket proxy → {}", target);
+
+        // Upgrade client connection
+        let (response, mut session, mut msg_stream) = actix_ws::handle(&req, payload)?;
+        let no_forward_headers = self.config.no_forward_headers;
+        let no_forward_cookies = self.config.no_forward_cookies;
+
+        // Spawn proxy task
+        actix_rt::spawn(async move {
+            let host = target.host().unwrap_or_default().to_string();
+            let mut ws = Client::builder().finish().ws(target);
+            ws.set_camel_case_headers(true);
+            // Insert headers
+            if !no_forward_headers {
+                for (name, value) in req.headers().iter() {
+                    if name == header::HOST {
+                        ws = ws.set_header(header::HOST, host.clone());
+                    }
+                    else if name != header::CONNECTION && 
+                            name != header::UPGRADE &&
+                            name != header::SEC_WEBSOCKET_KEY &&
+                            name != header::SEC_WEBSOCKET_EXTENSIONS &&
+                            name != header::SEC_WEBSOCKET_VERSION
+                    {
+                        if name.as_str().contains("127.0.0.1") {
+                            ws = ws.set_header(name.as_str().replace("127.0.0.1", "192.168.1.124").clone(), value.clone());
+                        }
+                        else {
+                            ws = ws.set_header(name.clone(), value.clone());
+                        }
+                    }
+                }
+            }
+
+            // // Insert cookies
+            if !no_forward_cookies {
+                if let Ok(cookies) = req.cookies() {
+                    for x in cookies.iter() {
+                        ws = ws.cookie(x.clone());
+                    }
+                }
+            }
+
+            // Connect to upstream websocket
+            let (_resp, mut upstream) = match ws.connect().await {
+                Ok(x) => x,
+                Err(e) => {
+                    error!("WS upstream connect failed: {}", e);
+                    return;
+                }
+            };
+
+            loop {
+                tokio::select! {
+
+                    // Client -> Upstream
+                    Some(msg) = msg_stream.next() => {
+                        match msg {
+                            Ok(Message::Text(txt)) => {
+                                if upstream.send(awc::ws::Message::Text(txt)).await.is_err() {
+                                    break;
+                                }
+                            }
+                            Ok(Message::Binary(bin)) => {
+                                if upstream.send(awc::ws::Message::Binary(bin)).await.is_err() {
+                                    break;
+                                }
+                            }
+                            Ok(Message::Ping(v)) => {
+                                let _ = upstream.send(awc::ws::Message::Ping(v)).await;
+                            }
+                            Ok(Message::Pong(v)) => {
+                                let _ = upstream.send(awc::ws::Message::Pong(v)).await;
+                            }
+                            Ok(Message::Close(reason)) => {
+                                let _ = upstream.send(awc::ws::Message::Close(reason)).await;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    // Upstream -> Client
+                    Some(frame) = upstream.next() => {
+                        match frame {
+                            Ok(awc::ws::Frame::Text(txt)) => {
+                                if let Ok(txt) = String::from_utf8(txt.to_vec()) {
+                                    if session.text(txt).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                            Ok(awc::ws::Frame::Binary(bin)) => {
+                                if session.binary(bin).await.is_err() {
+                                    break;
+                                }
+                            }
+                            Ok(awc::ws::Frame::Ping(v)) => {
+                                let _ = session.ping(&v).await;
+                            }
+                            Ok(awc::ws::Frame::Pong(v)) => {
+                                let _ = session.pong(&v).await;
+                            }
+                            Ok(awc::ws::Frame::Close(reason)) => {
+                                let _ = session.close(reason).await;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    else => break,
+                }
+            }
+
+            debug!("WebSocket proxy closed");
+        });
+
+        Ok(response)
+    }
+
 }
