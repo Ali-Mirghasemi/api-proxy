@@ -138,10 +138,10 @@ pub struct ApiConfig {
     pub keep_proxy_path:        bool,
     /// Hook function called before processing each API request.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) hook_request:    Option<ApiHookRequestFn>,
+    pub hook_request:           Option<ApiHookRequestFn>,
     /// Hook function called before sending each API response.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) hook_response:   Option<ApiHookResponseFn>,
+    pub hook_response:          Option<ApiHookResponseFn>,
 }
 
 /// Type alias for API hook functions.
