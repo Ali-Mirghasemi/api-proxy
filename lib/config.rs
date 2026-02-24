@@ -60,9 +60,6 @@ pub struct ServerConfig {
     pub cert_file:              Option<String>,
     /// TLS private key file path.
     pub key_file:               Option<String>,
-    /// Server operation mode.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub mode:                   Mode,
     /// Maximum allowed request payload size (bytes).
     #[cfg_attr(feature = "serde", serde(default))]
     pub payload_limit:          Option<usize>,
