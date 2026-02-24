@@ -3,8 +3,8 @@ use std::process;
 use std::io::Write;
 
 use log::{info, error};
-use api_proxy_lib::config::Config;
-use api_proxy_lib::server::Server;
+use api_proxy::config::Config;
+use api_proxy::server::Server;
 
 #[actix_web::main]
 async fn main() {

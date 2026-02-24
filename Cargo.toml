@@ -5,7 +5,7 @@ edition = "2024"
 default-run = "api_proxy"
 
 [lib]
-name = "api_proxy_lib"
+name = "api_proxy"
 path = "lib/mod.rs"
 
 [[bin]]
