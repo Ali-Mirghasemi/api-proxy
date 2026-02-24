@@ -77,7 +77,7 @@ impl Proxy {
             .finish()
     }
 
-    fn is_websocket(req: &HttpRequest) -> bool {
+    pub fn is_websocket(req: &HttpRequest) -> bool {
         req.headers()
             .get("upgrade")
             .and_then(|v| v.to_str().ok())
@@ -95,10 +95,18 @@ impl Proxy {
     /// - [`Mode::Rule`] → [`Self::forward_rule`]
     pub async fn forward(
         &self,
-        req: HttpRequest,
-        payload: web::Payload,
+        mut req: HttpRequest,
+        mut payload: web::Payload,
         server: Arc<ServerConfig>,
     ) -> ProxyHttpResponse {
+        // Hook api request
+        if let Some(hook) = self.config.hook_request {
+            if let Err(e) = hook(&self.config, &mut req, &mut payload).await {
+                error!("API request hook failed: {}", e);
+                return Ok(HttpResponse::InternalServerError().finish());
+            }
+        }
+
         if Self::is_websocket(&req) {
             return self.ws_proxy(req, payload).await.map_err(Error::from);
         }
@@ -179,7 +187,8 @@ impl Proxy {
 
         let host = target_url.host().unwrap_or_default().to_string();
         let mut client_req = client
-            .request(req.method().clone(), target_url);
+            .request(req.method().clone(), target_url)
+            .camel_case();
 
         if self.config.no_decompress {
             client_req = client_req.no_decompress();
@@ -215,13 +224,21 @@ impl Proxy {
         }
 
         debug!("{client_req:?}");
-        let res: ClientResponse<Decoder<Payload>> = match client_req.send_body(body).await {
+        let mut res: ClientResponse<Decoder<Payload>> = match client_req.send_body(body).await {
             Ok(r) => r,
             Err(e) => {
                 error!("Upstream request failed: {}", e);
                 return Ok(HttpResponse::BadGateway().finish());
             }
         };
+
+        // Hook api response
+        if let Some(hook) = self.config.hook_response {
+            if let Err(e) = hook(&self.config, &mut res).await {
+                error!("API response hook failed: {}", e);
+                return Ok(HttpResponse::InternalServerError().finish());
+            }
+        }
 
         debug!("{res:?}");
 

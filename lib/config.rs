@@ -19,6 +19,11 @@ use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 use std::collections::HashMap;
+use actix_http::Payload;
+use actix_http::encoding::Decoder;
+use actix_web::HttpRequest;
+use awc::ClientResponse;
+use futures::future::BoxFuture;
 use serde_json::Value;
 
 use crate::errors::Error;
@@ -134,7 +139,19 @@ pub struct ApiConfig {
     /// Preserve original proxy path when forwarding.
     #[cfg_attr(feature = "serde", serde(default))]
     pub keep_proxy_path:        bool,
+    /// Hook function called before processing each API request.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) hook_request:    Option<ApiHookRequestFn>,
+    /// Hook function called before sending each API response.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) hook_response:   Option<ApiHookResponseFn>,
 }
+
+/// Type alias for API hook functions.
+pub type ApiHookRequestFn = fn(&ApiConfig, &mut HttpRequest, &mut actix_web::web::Payload) -> BoxFuture<'static, Result<(), Error>>;
+
+/// Type alias for API hook functions.
+pub type ApiHookResponseFn = fn(&ApiConfig, &mut ClientResponse<Decoder<Payload>>) -> BoxFuture<'static, Result<(), Error>>;
 
 /// API processing mode.
 #[derive(Debug, Copy, Clone)]
