@@ -38,7 +38,7 @@ use crate::config::{ServerConfig, ApiConfig};
 use crate::errors::ProxyHttpResponse;
 use crate::proxy::Proxy;
 
-use log::{debug, error, info};
+use crate::{debug, error, info};
 
 /// HTTP/HTTPS server instance.
 ///

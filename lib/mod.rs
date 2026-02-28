@@ -29,4 +29,28 @@ pub mod deps {
     pub use awc;
     pub use actix_web;
     pub use actix_http;
+
+    #[cfg(feature = "log")]    
+    pub use env_logger;
 }
+
+#[cfg(feature = "log")]
+mod log {
+    pub use log::{info, warn, error, debug, trace};
+}
+
+#[cfg(not(feature = "log"))]
+mod log {
+    #[macro_export]
+    macro_rules! info { ($($arg:tt)+) => { }; }
+    #[macro_export]
+    macro_rules! warn { ($($arg:tt)+) => { }; }
+    #[macro_export]
+    macro_rules! error { ($($arg:tt)+) => { }; }
+    #[macro_export]
+    macro_rules! debug { ($($arg:tt)+) => { }; }
+    #[macro_export]
+    macro_rules! trace { ($($arg:tt)+) => { }; }
+}
+
+pub use log::*;

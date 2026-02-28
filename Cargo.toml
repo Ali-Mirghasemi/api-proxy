@@ -54,6 +54,11 @@ rustls-0_23 = [
     "awc/rustls-0_23-webpki-roots"
 ]
 
+log = [
+    "dep:log",
+    "dep:env_logger",
+]
+
 __tls = []
 
 [patch.crates-io]
@@ -73,8 +78,6 @@ futures = { version = "0.3", default-features = false }
 futures-util = { version = "0.3", default-features = false }
 percent-encoding = { version = "2.3", default-features = false }
 v_htmlescape = { version = "0.15", default-features = false }
-log = { version = "0.4", default-features = false }
-env_logger = { version = "0.11", default-features = false }
 regex = { version = "1.12", default-features = true }
 scraper = { version = "0.25", default-features = true }
 url = { version = "2.5", default-features = true }
@@ -82,6 +85,8 @@ tokio = { version = "1.49", default-features = false, features = ["rt", "macros"
 bytestring = { version = "1.5", default-features = false }
 
 # Optional crates
+log = { version = "0.4", default-features = false, optional = true }
+env_logger = { version = "0.11", default-features = false, optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 serde_json = { version = "1.0", default-features = false, optional = true }
 toml = { version = "0.9", default-features = false, features = ["serde", "parse"], optional = true }

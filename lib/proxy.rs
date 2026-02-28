@@ -35,11 +35,12 @@ use regex::Regex;
 use scraper::{Html, Selector};
 use serde_json::Value;
 use url::Url;
+use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::usize;
 
-use log::{debug, error};
+use crate::{debug, error};
 
 use crate::config::{ApiConfig, FieldType, Rule, Mode, ServerConfig};
 use crate::errors::{Error, ProxyHttpResponse};
@@ -100,10 +101,17 @@ impl Proxy {
         server: Arc<ServerConfig>,
     ) -> ProxyHttpResponse {
         // Hook api request
-        if let Some(hook) = self.config.hook_request {
-            if let Err(e) = hook(&self.config, &mut req, &mut payload).await {
-                error!("API request hook failed: {}", e);
-                return Ok(HttpResponse::InternalServerError().finish());
+        if let Some(hook) = &self.config.hook_request {
+            match hook.clone().lock() {
+                Ok(mut hook) =>  {
+                    if let Err(_e) = hook.hook(&self.config, &mut req, &mut payload).await {
+                        error!("API request hook failed: {}", _e);
+                        return Ok(HttpResponse::InternalServerError().finish());
+                    }
+                },
+                Err(_e) => {
+                    error!("API request hook lock failed: {}", _e);
+                }
             }
         }
 
@@ -233,10 +241,17 @@ impl Proxy {
         };
 
         // Hook api response
-        if let Some(hook) = self.config.hook_response {
-            if let Err(e) = hook(&self.config, &mut res).await {
-                error!("API response hook failed: {}", e);
-                return Ok(HttpResponse::InternalServerError().finish());
+        if let Some(hook) = &self.config.hook_response {
+            match hook.clone().lock() {
+                Ok(mut hook) =>  {
+                    if let Err(_e) = hook.hook(&self.config, &mut res).await {
+                        error!("API response hook failed: {}", _e);
+                        return Ok(HttpResponse::InternalServerError().finish());
+                    }
+                },
+                Err(_e) => {
+                    error!("API response hook lock failed: {}", _e);
+                }
             }
         }
 

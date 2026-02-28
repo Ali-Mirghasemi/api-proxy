@@ -19,7 +19,7 @@ use rcgen::{
 use std::fs;
 use std::net::IpAddr;
 use std::path::Path;
-use log::{info, warn};
+use crate::{info, warn};
 use crate::errors::Error;
 
 /// Ensure that a TLS certificate and private key exist.

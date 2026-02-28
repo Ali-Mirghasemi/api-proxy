@@ -19,6 +19,7 @@ use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use actix_http::Payload;
 use actix_http::encoding::Decoder;
 use actix_web::HttpRequest;
@@ -138,17 +139,11 @@ pub struct ApiConfig {
     pub keep_proxy_path:        bool,
     /// Hook function called before processing each API request.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub hook_request:           Option<ApiHookRequestFn>,
+    pub hook_request:           Option<Arc<Mutex<dyn ApiHookRequest>>>,
     /// Hook function called before sending each API response.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub hook_response:          Option<ApiHookResponseFn>,
+    pub hook_response:          Option<Arc<Mutex<dyn ApiHookResponse>>>,
 }
-
-/// Type alias for API hook functions.
-pub type ApiHookRequestFn = fn(&ApiConfig, &mut HttpRequest, &mut actix_web::web::Payload) -> BoxFuture<'static, Result<(), Error>>;
-
-/// Type alias for API hook functions.
-pub type ApiHookResponseFn = fn(&ApiConfig, &mut ClientResponse<Decoder<Payload>>) -> BoxFuture<'static, Result<(), Error>>;
 
 /// API processing mode.
 #[derive(Debug, Copy, Clone)]
@@ -463,6 +458,14 @@ impl Display for FieldType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
+}
+
+pub trait ApiHookRequest: std::fmt::Debug + Send + Sync {
+    fn hook(&mut self, config: &ApiConfig, req: &mut HttpRequest, payload: &mut actix_web::web::Payload) -> BoxFuture<Result<(), Error>>;
+}
+
+pub trait ApiHookResponse: std::fmt::Debug + Send + Sync {
+    fn hook(&mut self, config: &ApiConfig, res: &mut ClientResponse<Decoder<Payload>>) -> BoxFuture<Result<(), Error>>;
 }
 
 #[cfg(test)]

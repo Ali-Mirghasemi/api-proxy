@@ -2,14 +2,15 @@ use std::env;
 use std::process;
 use std::io::Write;
 
-use log::{info, error};
+use api_proxy::{info, error};
 use api_proxy::config::Config;
 use api_proxy::server::Server;
 
 #[actix_web::main]
 async fn main() {
     // Initialize logger
-    env_logger::Builder::from_default_env()
+    #[cfg(feature = "log")]
+    api_proxy::deps::env_logger::Builder::from_default_env()
             .format(|buf, record| {
                 let mut file = record.file().unwrap_or("Unknown");
 
