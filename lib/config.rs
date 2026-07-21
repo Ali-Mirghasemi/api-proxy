@@ -86,7 +86,7 @@ pub struct ApiConfig {
     pub target_path:            Option<String>,
     /// Optional path prefix stripping or rewriting.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub path_prefix:     Option<String>,
+    pub path_prefix:            Option<String>,
     /// API operation mode.
     #[cfg_attr(feature = "serde", serde(default))]
     pub mode:                   Mode,
@@ -138,6 +138,9 @@ pub struct ApiConfig {
     /// Preserve original proxy path when forwarding.
     #[cfg_attr(feature = "serde", serde(default))]
     pub keep_proxy_path:        bool,
+    /// Add '/' to end of target path
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub append_target_end_slash:bool,
     /// Hook function called before processing each API request.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub hook_request:           Option<Arc<Mutex<dyn ApiHookRequest>>>,

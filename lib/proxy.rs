@@ -347,7 +347,7 @@ impl Proxy {
             path = path.trim_start_matches(&self.config.path);
         }
 
-        if !url.ends_with("/") {
+        if self.config.append_target_end_slash && !url.ends_with("/") {
             url += "/";
         }
 
