@@ -97,16 +97,26 @@ impl Proxy {
     pub async fn forward(
         &self,
         mut req: HttpRequest,
-        mut payload: web::Payload,
+        payload: web::Payload,
         server: Arc<ServerConfig>,
     ) -> ProxyHttpResponse {
+        if Self::is_websocket(&req) {
+            return self.ws_proxy(req, payload).await.map_err(Error::from);
+        }
+
+        let mut body = payload.to_bytes().await?;
         // Hook api request
         if let Some(hook) = &self.config.hook_request {
             match hook.clone().lock() {
                 Ok(mut hook) =>  {
-                    if let Err(_e) = hook.hook(&self.config, &mut req, &mut payload).await {
-                        error!("API request hook failed: {}", _e);
-                        return Ok(HttpResponse::InternalServerError().finish());
+                    match hook.hook(&self.config, &mut req, body).await {
+                        Ok(b) => {
+                            body = b;
+                        },
+                        Err(_e) => {
+                            error!("API request hook failed: {}", _e);
+                            return Ok(HttpResponse::InternalServerError().finish());
+                        }
                     }
                 },
                 Err(_e) => {
@@ -114,12 +124,6 @@ impl Proxy {
                 }
             }
         }
-
-        if Self::is_websocket(&req) {
-            return self.ws_proxy(req, payload).await.map_err(Error::from);
-        }
-
-        let body = payload.to_bytes().await?;
 
         match self.config.mode {
             Mode::Raw => self.forward_raw(req, body, server).await,

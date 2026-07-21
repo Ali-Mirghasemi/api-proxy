@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex};
 use actix_http::Payload;
 use actix_http::encoding::Decoder;
 use actix_web::HttpRequest;
+use actix_web::web::Bytes;
 use awc::ClientResponse;
 use futures::future::BoxFuture;
 use serde_json::Value;
@@ -461,7 +462,7 @@ impl Display for FieldType {
 }
 
 pub trait ApiHookRequest: std::fmt::Debug + Send + Sync {
-    fn hook(&mut self, config: &ApiConfig, req: &mut HttpRequest, payload: &mut actix_web::web::Payload) -> BoxFuture<Result<(), Error>>;
+    fn hook(&mut self, config: &ApiConfig, req: &mut HttpRequest, payload: Bytes) -> BoxFuture<Result<Bytes, Error>>;
 }
 
 pub trait ApiHookResponse: std::fmt::Debug + Send + Sync {
