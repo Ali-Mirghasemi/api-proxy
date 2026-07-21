@@ -462,11 +462,11 @@ impl Display for FieldType {
 }
 
 pub trait ApiHookRequest: std::fmt::Debug + Send + Sync {
-    fn hook(&mut self, config: &ApiConfig, req: &mut HttpRequest, payload: Bytes) -> BoxFuture<Result<Bytes, Error>>;
+    fn hook(&mut self, config: ApiConfig, req: &mut HttpRequest, payload: Bytes) -> BoxFuture<Result<Bytes, Error>>;
 }
 
 pub trait ApiHookResponse: std::fmt::Debug + Send + Sync {
-    fn hook(&mut self, config: &ApiConfig, res: &mut ClientResponse<Decoder<Payload>>) -> BoxFuture<Result<(), Error>>;
+    fn hook(&mut self, config: ApiConfig, res: &mut ClientResponse<Decoder<Payload>>) -> BoxFuture<Result<(), Error>>;
 }
 
 #[cfg(test)]

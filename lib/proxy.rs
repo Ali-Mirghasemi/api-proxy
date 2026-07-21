@@ -109,7 +109,7 @@ impl Proxy {
         if let Some(hook) = &self.config.hook_request {
             match hook.clone().lock() {
                 Ok(mut hook) =>  {
-                    match hook.hook(&self.config, &mut req, body).await {
+                    match hook.hook(self.config.clone(), &mut req, body).await {
                         Ok(b) => {
                             body = b;
                         },
@@ -248,7 +248,7 @@ impl Proxy {
         if let Some(hook) = &self.config.hook_response {
             match hook.clone().lock() {
                 Ok(mut hook) =>  {
-                    if let Err(_e) = hook.hook(&self.config, &mut res).await {
+                    if let Err(_e) = hook.hook(self.config.clone(), &mut res).await {
                         error!("API response hook failed: {}", _e);
                         return Ok(HttpResponse::InternalServerError().finish());
                     }
