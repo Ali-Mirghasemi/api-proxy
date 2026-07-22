@@ -38,7 +38,7 @@ use crate::errors::Error;
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct Config {
     /// List of configured proxy servers.
-    pub servers:                Vec<ServerConfig>,
+    pub servers:                    Vec<ServerConfig>,
 }
 
 /// Configuration for a single proxy server.
@@ -49,28 +49,28 @@ pub struct Config {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct ServerConfig {
     /// Human-readable server name.
-    pub name:                   String,
+    pub name:                       String,
     /// Address to bind to, e.g. `0.0.0.0:8080`.
-    pub listen:                 String,
+    pub listen:                     String,
     /// Enable HTTPS listener.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub https:                  bool,
+    pub https:                      bool,
     /// Redirect incoming HTTP traffic to HTTPS.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub redirect_http_to_https: bool,
+    pub redirect_http_to_https:     bool,
     /// TLS certificate file path.
-    pub cert_file:              Option<String>,
+    pub cert_file:                  Option<String>,
     /// TLS private key file path.
-    pub key_file:               Option<String>,
+    pub key_file:                   Option<String>,
     /// Maximum allowed request payload size (bytes).
     #[cfg_attr(feature = "serde", serde(default))]
-    pub payload_limit:          Option<usize>,
+    pub payload_limit:              Option<usize>,
     /// Optional rate limiting configuration.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub rate_limit:             Option<RateLimitConfig>,
+    pub rate_limit:                 Option<RateLimitConfig>,
     /// API route definitions handled by this server.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub apis:                   Vec<ApiConfig>,
+    pub apis:                       Vec<ApiConfig>,
 }
 
 /// Configuration for a single proxied API endpoint.
@@ -78,75 +78,75 @@ pub struct ServerConfig {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct ApiConfig {
     /// Incoming request path to match.
-    pub path:                   String,
+    pub path:                       String,
     /// Target upstream URL.
-    pub target:                 String,
+    pub target:                     String,
     /// Optional override for forwarded path.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub target_path:            Option<String>,
+    pub target_path:                Option<String>,
     /// Optional path prefix stripping or rewriting.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub path_prefix:            Option<String>,
+    pub path_prefix:                Option<String>,
     /// API operation mode.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub mode:                   Mode,
+    pub mode:                       Mode,
     /// Required `Content-Type` for incoming requests.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub content_type:           Option<String>,
+    pub content_type:               Option<String>,
     /// Required HTTP method (e.g. `POST`, `GET`).
     #[cfg_attr(feature = "serde", serde(default))]
-    pub method:                 Option<String>,
+    pub method:                     Option<String>,
     /// Header filtering rules.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub header_rules:           Vec<HeaderRule>,
+    pub header_rules:               Vec<HeaderRule>,
     /// Headers injected into forwarded requests.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub inject_headers:         HashMap<String, String>,
+    pub inject_headers:             HashMap<String, String>,
     /// Cookies injected into forwarded requests.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub inject_cookies:         HashMap<String, String>,
+    pub inject_cookies:             HashMap<String, String>,
     /// Payload validation rules.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub rules:                  Vec<Rule>,
+    pub rules:                      Vec<Rule>,
     /// Per-API payload size limit.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub payload_limit:          Option<usize>,
+    pub payload_limit:              Option<usize>,
     /// Override server-level HTTP→HTTPS redirect behavior.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub redirect_http_to_https: Option<bool>,
+    pub redirect_http_to_https:     Option<bool>,
     /// Per-API rate limiting configuration.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub rate_limit:             Option<RateLimitConfig>,
+    pub rate_limit:                 Option<RateLimitConfig>,
     /// Default action when validation fails.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub policy:                 ApiPolicy,
+    pub policy:                     ApiPolicy,
     /// Disable response decompression.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub no_decompress:          bool,
+    pub no_decompress:              bool,
     /// Do not forward client headers upstream.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub no_forward_headers:     bool,
+    pub no_forward_headers:         bool,
     /// Do not forward client cookies upstream.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub no_forward_cookies:     bool,
+    pub no_forward_cookies:         bool,
     /// Rewrite absolute links in HTML responses.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub replace_html_links:     bool,
+    pub replace_html_links:         bool,
     /// Include unmatched request tail in forwarded path.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub include_tail:           bool,
+    pub include_tail:               bool,
     /// Preserve original proxy path when forwarding.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub keep_proxy_path:        bool,
+    pub keep_proxy_path:            bool,
     /// Add '/' to end of target path
     #[cfg_attr(feature = "serde", serde(default))]
-    pub append_target_end_slash:bool,
+    pub append_target_end_slash:    bool,
     /// Hook function called before processing each API request.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub hook_request:           Option<Arc<Mutex<dyn ApiHookRequest>>>,
+    pub hook_request:               Option<Arc<Mutex<dyn ApiHookRequest>>>,
     /// Hook function called before sending each API response.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub hook_response:          Option<Arc<Mutex<dyn ApiHookResponse>>>,
+    pub hook_response:              Option<Arc<Mutex<dyn ApiHookResponse>>>,
 }
 
 /// API processing mode.
@@ -169,9 +169,9 @@ impl Default for Mode {
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct HeaderRule {
-    pub name:                   String,
+    pub name:                       String,
     #[cfg_attr(feature = "serde", serde(rename = "action"))]
-    pub action:                 HeaderAction, // block, drop, allow
+    pub action:                     HeaderAction, // block, drop, allow
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -198,35 +198,35 @@ impl Default for HeaderAction {
 pub struct Rule {
     /// Field name or JSON path.
     #[cfg_attr(feature = "serde", serde(alias = "name"))]
-    pub field:                  String,                 // supports nested fields, e.g., sensor.readings[0].value
+    pub field:                      String,                 // supports nested fields, e.g., sensor.readings[0].value
     /// Expected field type.
     #[cfg_attr(feature = "serde", serde(default))]
     #[cfg_attr(feature = "serde", serde(alias = "type"))]
-    pub field_type:             Option<FieldType>,      // supports nested fields, e.g., sensor.readings[0].value
+    pub field_type:                 Option<FieldType>,      // supports nested fields, e.g., sensor.readings[0].value
     /// Numeric minimum value.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub min:                    Option<f64>,            // numeric min
+    pub min:                        Option<f64>,            // numeric min
     /// Numeric maximum value.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub max:                    Option<f64>,            // numeric max
+    pub max:                        Option<f64>,            // numeric max
     /// Exact allowed values.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub exact:                  Option<Vec<Value>>,    // exact match for strings
+    pub exact:                      Option<Vec<Value>>,    // exact match for strings
     /// Minimum string length.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub min_string_length:      Option<usize>,          // string min length
+    pub min_string_length:          Option<usize>,          // string min length
     /// Maximum string length.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub max_string_length:      Option<usize>,          // string max length
+    pub max_string_length:          Option<usize>,          // string max length
     /// Minimum array length.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub min_array_length:       Option<usize>,          // array min length
+    pub min_array_length:           Option<usize>,          // array min length
     /// Maximum array length.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub max_array_length:       Option<usize>,          // array max length
+    pub max_array_length:           Option<usize>,          // array max length
     /// Allow field to be missing.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub optional:               bool,                   // optional
+    pub optional:                   bool,                   // optional
 }
 
 /// Default action applied when an API validation fails.
@@ -250,10 +250,10 @@ pub enum ApiPolicy {
 pub struct RateLimitConfig {
     /// Allowed requests per second.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub requests_per_sec:       Option<u64>,
+    pub requests_per_sec:           Option<u64>,
     /// Maximum burst size.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub burst:                  Option<u64>,
+    pub burst:                      Option<u64>,
 }
 
 #[derive(Debug, Copy, Clone)]
