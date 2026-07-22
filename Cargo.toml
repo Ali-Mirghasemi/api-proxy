@@ -70,17 +70,17 @@ thiserror = { version = "2.0", default-features = false }
 actix = { version = "0.13", default-features = false }
 actix-web = { version = "4.13", default-features = false, features = ["compat", "http2", "macros", "cookies"]}
 actix-rt = { version = "2.11", default-features = false }
-actix-ws = { version = "0.3", default-features = false }
+actix-ws = { version = "0.4", default-features = false }
 http = { version = "0.2", default-features = false }
 actix-http = { version = "3.12", default-features = false, features = ["http2", "ws", "compress-brotli", "compress-gzip", "compress-zstd"] }
-awc = { version = "3.8", default-features = true, features = ["cookies", "compress-brotli", "compress-gzip", "compress-zstd"] }
+awc = { version = "3.8", default-features = false, features = ["cookies", "compress-brotli", "compress-gzip", "compress-zstd"] }
 futures = { version = "0.3", default-features = false }
 futures-util = { version = "0.3", default-features = false }
 percent-encoding = { version = "2.3", default-features = false }
 v_htmlescape = { version = "0.15", default-features = false }
-regex = { version = "1.12", default-features = true }
-scraper = { version = "0.25", default-features = true }
-url = { version = "2.5", default-features = true }
+regex = { version = "1.12", default-features = false }
+scraper = { version = "0.25", default-features = false }
+url = { version = "2.5", default-features = false }
 tokio = { version = "1.49", default-features = false, features = ["rt", "macros"] }
 bytestring = { version = "1.5", default-features = false }
 

@@ -577,7 +577,7 @@ impl Proxy {
         actix_rt::spawn(async move {
             let host = target.host().unwrap_or_default().to_string();
             let mut ws = Client::builder().finish().ws(target);
-            ws.set_camel_case_headers(true);
+            ws = ws.set_camel_case_headers(true);
             // Insert headers
             if !no_forward_headers {
                 for (name, value) in req.headers().iter() {
