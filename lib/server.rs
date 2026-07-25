@@ -11,6 +11,7 @@
 //! and may expose multiple API proxy routes.
 
 use actix_web::dev::WebService;
+use actix_web::web::{Data, ServiceConfig};
 use actix_web::{App, HttpServer, web, HttpRequest, HttpResponse};
 use actix_web::http::header;
 use std::sync::Arc;
@@ -58,6 +59,10 @@ impl Server {
         }
     }
     
+    pub async fn run(self) -> std::io::Result<()> {
+        self.run_with_configure::<(), fn(&mut ServiceConfig)>(None, None).await
+    }
+
     /// Run a single HTTP/HTTPS server instance.
     ///
     /// This method:
@@ -68,13 +73,27 @@ impl Server {
     ///
     /// If HTTPS is enabled, both HTTP and HTTPS servers
     /// are run concurrently.
-    pub async fn run(self) -> std::io::Result<()> {
+    pub async fn run_with_configure<T, F>(self, app_state: Option<T>, configure: Option<F>) -> std::io::Result<()> 
+    where
+        T: Clone + Send + 'static,
+        F: FnOnce(&mut ServiceConfig) + Send + Copy + 'static,
+    {
         debug!("{:#?}", self.config);
 
         let server = Arc::new(self.config);
 
-        let build_app = |server: Arc<ServerConfig>, is_https| {
+        let build_app = |server: Arc<ServerConfig>, is_https, app_state: Option<T>, f: Option<F>| {
             let mut app = App::new();
+
+            // Call app_state
+            if let Some(app_state) = app_state {
+                app = app.app_data(Data::new(app_state));
+            }
+
+            // Call configure
+            if let Some(f) = f {
+                app = app.configure(f);
+            }
 
             for api in &server.apis {
                 let api = api.clone();
@@ -100,7 +119,7 @@ impl Server {
         let http_server = {
             let _server = server.clone();
             HttpServer::new(move || {
-                    build_app(_server.clone(), false)
+                    build_app(_server.clone(), false, app_state.clone(), configure)
                 })
                 .bind(&server.listen)?
                 .run()
@@ -122,7 +141,7 @@ impl Server {
                 let _server = server.clone();
 
                 let mut x = HttpServer::new(move || {
-                        build_app(_server.clone(), true) // ✅ HTTPS
+                        build_app(_server.clone(), true, app_state.clone(), configure) // ✅ HTTPS
                     });
 
                 #[cfg(feature = "rustls")]
@@ -161,15 +180,23 @@ impl Server {
         Ok(())
     }
 
+    pub async fn run_servers(servers: Vec<ServerConfig>) -> std::io::Result<()> {
+        Self::run_servers_configure::<(), fn(&mut ServiceConfig)>(servers, None, None).await
+    }
+
     /// Launch all configured servers concurrently.
     ///
     /// Each server runs in its own asynchronous task.
     /// A failure in one server does not stop others.
-    pub async fn run_servers(servers: Vec<ServerConfig>) -> std::io::Result<()> {
+    pub async fn run_servers_configure<T, F>(servers: Vec<ServerConfig>, app_state: Option<T>, configure: Option<F>) -> std::io::Result<()> 
+    where
+        T: Clone + Send + 'static,
+        F: FnOnce(&mut ServiceConfig) + Send + Copy + 'static,
+    {
         let mut handles = Vec::new();
 
         for server in servers {
-            handles.push(actix_rt::spawn(Self::new(server).run()));
+            handles.push(actix_rt::spawn(Self::new(server).run_with_configure(app_state.clone(), configure)));
         }
 
         for h in handles {
