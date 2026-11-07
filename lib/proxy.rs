@@ -565,122 +565,188 @@ impl Proxy {
         req: HttpRequest,
         payload: web::Payload,
     ) -> actix_web::Result<HttpResponse> {
+        // WebSocket frame limits are independent of the HTTP API payload_limit.
+        // Set a finite limit on BOTH decoders. The defaults are only 64 KiB.
+        const WS_MAX_FRAME_SIZE: usize = 16 * 1024 * 1024;
+
         let target = self.build_target_url(&req);
         debug!("Websocket proxy → {}", target);
 
-        // Upgrade client connection
-        let (response, mut session, mut msg_stream) = actix_ws::handle(&req, payload)?;
+        // Keep frames separate (do not aggregate continuations): relaying the
+        // exact fragmentation avoids buffering a whole video message.
+        let (response, mut session, msg_stream) = actix_ws::handle(&req, payload)?;
+        let mut msg_stream = msg_stream.max_frame_size(WS_MAX_FRAME_SIZE);
         let no_forward_headers = self.config.no_forward_headers;
         let no_forward_cookies = self.config.no_forward_cookies;
 
-        // Spawn proxy task
         actix_rt::spawn(async move {
             let host = target.host().unwrap_or_default().to_string();
-            let mut ws = Client::builder().finish().ws(target);
+            let mut ws = Client::builder()
+                .finish()
+                .ws(target)
+                .max_frame_size(WS_MAX_FRAME_SIZE);
             ws = ws.set_camel_case_headers(true);
-            // Insert headers
+
+            // Preserve the original header/cookie behavior.
             if !no_forward_headers {
                 for (name, value) in req.headers().iter() {
                     if name == header::HOST {
                         ws = ws.set_header(header::HOST, host.clone());
-                    }
-                    else if name != header::CONNECTION && 
-                            name != header::UPGRADE &&
-                            name != header::SEC_WEBSOCKET_KEY &&
-                            name != header::SEC_WEBSOCKET_EXTENSIONS &&
-                            name != header::SEC_WEBSOCKET_VERSION
+                    } else if name != header::CONNECTION
+                        && name != header::UPGRADE
+                        && name != header::SEC_WEBSOCKET_KEY
+                        && name != header::SEC_WEBSOCKET_EXTENSIONS
+                        && name != header::SEC_WEBSOCKET_VERSION
                     {
                         if name.as_str().contains("127.0.0.1") {
-                            ws = ws.set_header(name.as_str().replace("127.0.0.1", "192.168.1.124").clone(), value.clone());
-                        }
-                        else {
+                            ws = ws.set_header(
+                                name.as_str().replace("127.0.0.1", "192.168.1.124"),
+                                value.clone(),
+                            );
+                        } else {
                             ws = ws.set_header(name.clone(), value.clone());
                         }
                     }
                 }
             }
 
-            // // Insert cookies
             if !no_forward_cookies {
                 if let Ok(cookies) = req.cookies() {
-                    for x in cookies.iter() {
-                        ws = ws.cookie(x.clone());
+                    for cookie in cookies.iter() {
+                        ws = ws.cookie(cookie.clone());
                     }
                 }
             }
 
-            // Connect to upstream websocket
-            let (_resp, mut upstream) = match ws.connect().await {
-                Ok(x) => x,
-                Err(e) => {
-                    error!("WS upstream connect failed: {}", e);
+            let (_upstream_response, mut upstream) = match ws.connect().await {
+                Ok(connected) => connected,
+                Err(err) => {
+                    error!("WS upstream connect failed: {}", err);
+                    let _ = session.close(None).await;
                     return;
                 }
             };
 
+            let mut client_close_sent = false;
+            let mut upstream_close_sent = false;
+
+            // Awaiting each send enforces backpressure; no unbounded relay queue.
             loop {
                 tokio::select! {
-
-                    // Client -> Upstream
-                    Some(msg) = msg_stream.next() => {
-                        match msg {
-                            Ok(Message::Text(txt)) => {
-                                if upstream.send(awc::ws::Message::Text(txt)).await.is_err() {
+                    client_frame = msg_stream.next() => {
+                        match client_frame {
+                            Some(Ok(Message::Text(txt))) => {
+                                if let Err(err) = upstream.send(awc::ws::Message::Text(txt)).await {
+                                    error!("WS client → upstream text send failed: {}", err);
                                     break;
                                 }
                             }
-                            Ok(Message::Binary(bin)) => {
-                                if upstream.send(awc::ws::Message::Binary(bin)).await.is_err() {
+                            Some(Ok(Message::Binary(bin))) => {
+                                if let Err(err) = upstream.send(awc::ws::Message::Binary(bin)).await {
+                                    error!("WS client → upstream binary send failed: {}", err);
                                     break;
                                 }
                             }
-                            Ok(Message::Ping(v)) => {
-                                let _ = upstream.send(awc::ws::Message::Ping(v)).await;
+                            Some(Ok(Message::Continuation(item))) => {
+                                if let Err(err) = upstream.send(awc::ws::Message::Continuation(item)).await {
+                                    error!("WS client → upstream continuation send failed: {}", err);
+                                    break;
+                                }
                             }
-                            Ok(Message::Pong(v)) => {
-                                let _ = upstream.send(awc::ws::Message::Pong(v)).await;
+                            Some(Ok(Message::Ping(bytes))) => {
+                                if let Err(err) = upstream.send(awc::ws::Message::Ping(bytes)).await {
+                                    error!("WS client → upstream ping send failed: {}", err);
+                                    break;
+                                }
                             }
-                            Ok(Message::Close(reason)) => {
-                                let _ = upstream.send(awc::ws::Message::Close(reason)).await;
+                            Some(Ok(Message::Pong(bytes))) => {
+                                if let Err(err) = upstream.send(awc::ws::Message::Pong(bytes)).await {
+                                    error!("WS client → upstream pong send failed: {}", err);
+                                    break;
+                                }
+                            }
+                            Some(Ok(Message::Close(reason))) => {
+                                if let Err(err) = upstream.send(awc::ws::Message::Close(reason)).await {
+                                    error!("WS client → upstream close send failed: {}", err);
+                                } else {
+                                    upstream_close_sent = true;
+                                }
                                 break;
                             }
-                            _ => {}
+                            Some(Ok(_)) => {} // Nop
+                            Some(Err(err)) => {
+                                error!("WS client protocol/read error: {}", err);
+                                break;
+                            }
+                            None => break, // Client disconnected.
                         }
                     }
 
-                    // Upstream -> Client
-                    Some(frame) = upstream.next() => {
-                        match frame {
-                            Ok(awc::ws::Frame::Text(txt)) => {
-                                if let Ok(txt) = String::from_utf8(txt.to_vec()) {
-                                    if session.text(txt).await.is_err() {
+                    upstream_frame = upstream.next() => {
+                        match upstream_frame {
+                            Some(Ok(awc::ws::Frame::Text(bytes))) => {
+                                // Do not silently discard malformed text frames.
+                                match String::from_utf8(bytes.to_vec()) {
+                                    Ok(txt) => {
+                                        if session.text(txt).await.is_err() {
+                                            error!("WS upstream → client text send failed");
+                                            break;
+                                        }
+                                    }
+                                    Err(err) => {
+                                        error!("WS upstream sent invalid UTF-8 text: {}", err);
                                         break;
                                     }
                                 }
                             }
-                            Ok(awc::ws::Frame::Binary(bin)) => {
+                            Some(Ok(awc::ws::Frame::Binary(bin))) => {
                                 if session.binary(bin).await.is_err() {
+                                    error!("WS upstream → client binary send failed");
                                     break;
                                 }
                             }
-                            Ok(awc::ws::Frame::Ping(v)) => {
-                                let _ = session.ping(&v).await;
+                            Some(Ok(awc::ws::Frame::Continuation(item))) => {
+                                if session.continuation(item).await.is_err() {
+                                    error!("WS upstream → client continuation send failed");
+                                    break;
+                                }
                             }
-                            Ok(awc::ws::Frame::Pong(v)) => {
-                                let _ = session.pong(&v).await;
+                            Some(Ok(awc::ws::Frame::Ping(bytes))) => {
+                                if session.ping(&bytes).await.is_err() {
+                                    error!("WS upstream → client ping send failed");
+                                    break;
+                                }
                             }
-                            Ok(awc::ws::Frame::Close(reason)) => {
-                                let _ = session.close(reason).await;
+                            Some(Ok(awc::ws::Frame::Pong(bytes))) => {
+                                if session.pong(&bytes).await.is_err() {
+                                    error!("WS upstream → client pong send failed");
+                                    break;
+                                }
+                            }
+                            Some(Ok(awc::ws::Frame::Close(reason))) => {
+                                if session.close(reason).await.is_err() {
+                                    error!("WS upstream → client close send failed");
+                                } else {
+                                    client_close_sent = true;
+                                }
                                 break;
                             }
-                            _ => {}
+                            Some(Err(err)) => {
+                                error!("WS upstream protocol/read error: {}", err);
+                                break;
+                            }
+                            None => break, // Upstream disconnected.
                         }
                     }
-
-                    else => break,
                 }
             }
 
+            if !upstream_close_sent {
+                let _ = upstream.send(awc::ws::Message::Close(None)).await;
+            }
+            if !client_close_sent {
+                let _ = session.close(None).await;
+            }
             debug!("WebSocket proxy closed");
         });
 
