@@ -627,7 +627,7 @@ impl Proxy {
                 }
             };
 
-            let mut client_close_sent = false;
+            let mut client_close_reason = None;
             let mut upstream_close_sent = false;
 
             // Awaiting each send enforces backpressure; no unbounded relay queue.
@@ -724,11 +724,8 @@ impl Proxy {
                                 }
                             }
                             Some(Ok(awc::ws::Frame::Close(reason))) => {
-                                if session.close(reason).await.is_err() {
-                                    error!("WS upstream → client close send failed");
-                                } else {
-                                    client_close_sent = true;
-                                }
+                                // Session::close consumes self. Defer the close until cleanup.
+                                client_close_reason = reason;
                                 break;
                             }
                             Some(Err(err)) => {
@@ -744,9 +741,7 @@ impl Proxy {
             if !upstream_close_sent {
                 let _ = upstream.send(awc::ws::Message::Close(None)).await;
             }
-            if !client_close_sent {
-                let _ = session.close(None).await;
-            }
+            let _ = session.close(client_close_reason).await;
             debug!("WebSocket proxy closed");
         });
 
